@@ -1,0 +1,2176 @@
+# ================== 완전한 웹 대시보드 ==================
+class CompleteWebDashboard:
+    """완전한 웹 대시보드 (오류 수정 버전)"""
+    
+    def __init__(self, system):
+        self.system = system
+        self.app = web.Application()
+        self._setup_routes()
+    
+    def _setup_routes(self):
+        """라우트 설정"""
+        # 기본 라우트들
+        self.app.router.add_get('/', self.dashboard_handler)
+        self.app.router.add_get('/api/status', self.status_handler)
+        self.app.router.add_get('/api/metrics', self.metrics_handler)
+        self.app.router.add_get('/api/positions', self.positions_handler)
+        self.app.router.add_get('/api/trades', self.trades_handler)
+        self.app.router.add_get('/health', self.health_handler)
+        
+        # WebSocket 라우트
+        self.app.router.add_get('/ws', self.system.websocket_handler.websocket_handler)
+        
+        # 고급 API 라우트들
+        self.app.router.add_get('/api/ai-performance', self.ai_performance_handler)
+        self.app.router.add_get('/api/price-stream', self.price_stream_handler)
+        self.app.router.add_get('/api/system-health', self.system_health_handler)
+        
+        # 제어 API들
+        self.app.router.add_post('/api/close-position', self.close_position_handler)
+        self.app.router.add_post('/api/emergency-stop', self.emergency_stop_handler)
+    
+    async def dashboard_handler(self, request):
+        """메인 대시보드 HTML (수정된 버전)"""
+        html_content = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Phoenix 95 - Complete System</title>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body { 
+                    font-family: 'Courier New', monospace; 
+                    background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
+                    color: #00ff41; 
+                    min-height: 100vh;
+                }
+                .header { 
+                    text-align: center; 
+                    padding: 20px;
+                    background: rgba(0, 255, 65, 0.1);
+                    border-bottom: 2px solid #00ff41;
+                    margin-bottom: 20px;
+                }
+                .header h1 { 
+                    font-size: 2.5em; 
+                    text-shadow: 0 0 20px #00ff41;
+                    margin-bottom: 10px;
+                    animation: pulse 3s infinite;
+                }
+                @keyframes pulse {
+                    0%, 100% { opacity: 1; }
+                    50% { opacity: 0.7; }
+                }
+                .status-bar {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 10px 20px;
+                    background: rgba(255, 255, 255, 0.05);
+                    border-radius: 5px;
+                    margin: 0 20px 20px 20px;
+                    flex-wrap: wrap;
+                    gap: 10px;
+                }
+                .connection-status {
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                }
+                .status-dot {
+                    width: 12px;
+                    height: 12px;
+                    border-radius: 50%;
+                    background: #51cf66;
+                    animation: heartbeat 2s infinite;
+                }
+                @keyframes heartbeat {
+                    0%, 50%, 100% { opacity: 1; }
+                    25%, 75% { opacity: 0.5; }
+                }
+                .status-dot.warning { background: #ffd43b; }
+                .status-dot.danger { background: #ff6b6b; }
+                .grid { 
+                    display: grid; 
+                    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); 
+                    gap: 20px; 
+                    padding: 0 20px;
+                }
+                .card { 
+                    background: rgba(26, 26, 26, 0.9); 
+                    border: 1px solid #333; 
+                    border-radius: 10px; 
+                    padding: 20px;
+                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+                    transition: all 0.3s ease;
+                    position: relative;
+                    overflow: hidden;
+                }
+                .card:hover {
+                    transform: translateY(-5px);
+                    box-shadow: 0 8px 25px rgba(0, 255, 65, 0.2);
+                    border-color: #00ff41;
+                }
+                .card::before {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 2px;
+                    background: linear-gradient(90deg, #00ff41, #00cc33);
+                }
+                .card h3 {
+                    margin-bottom: 15px;
+                    font-size: 1.3em;
+                    border-bottom: 1px solid #333;
+                    padding-bottom: 10px;
+                }
+                .metric { 
+                    display: flex; 
+                    justify-content: space-between; 
+                    margin: 12px 0;
+                    padding: 10px;
+                    background: rgba(255, 255, 255, 0.03);
+                    border-radius: 5px;
+                }
+                .metric:hover { background: rgba(255, 255, 255, 0.05); }
+                .metric .label { opacity: 0.8; font-weight: 500; }
+                .metric .value { font-weight: bold; font-size: 1.1em; }
+                .good { color: #51cf66; }
+                .warning { color: #ffd43b; }
+                .danger { color: #ff6b6b; }
+                .excellent { color: #00ff41; text-shadow: 0 0 5px #00ff41; }
+                
+                .positions-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    font-size: 0.9em;
+                    margin-top: 10px;
+                }
+                .positions-table th,
+                .positions-table td {
+                    padding: 10px 8px;
+                    text-align: left;
+                    border-bottom: 1px solid #333;
+                }
+                .positions-table th {
+                    background: rgba(0, 255, 65, 0.1);
+                    font-weight: bold;
+                }
+                .positions-table tr:hover {
+                    background: rgba(255, 255, 255, 0.05);
+                }
+                
+                .btn {
+                    background: linear-gradient(45deg, #00ff41, #00cc33);
+                    color: #000;
+                    border: none;
+                    padding: 10px 20px;
+                    border-radius: 5px;
+                    cursor: pointer;
+                    font-family: 'Courier New', monospace;
+                    font-weight: bold;
+                    transition: all 0.3s ease;
+                    margin: 5px;
+                    text-transform: uppercase;
+                }
+                .btn:hover {
+                    background: linear-gradient(45deg, #00cc33, #00aa22);
+                    transform: translateY(-2px);
+                    box-shadow: 0 4px 15px rgba(0, 255, 65, 0.3);
+                }
+                .btn-danger {
+                    background: linear-gradient(45deg, #ff6b6b, #ff5252);
+                    color: #fff;
+                }
+                .btn-danger:hover {
+                    background: linear-gradient(45deg, #ff5252, #ff4444);
+                    box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+                }
+                
+                .real-time-data {
+                    background: rgba(0, 255, 65, 0.1);
+                    border: 1px solid #00ff41;
+                    border-radius: 5px;
+                    padding: 10px;
+                    margin: 10px 0;
+                    animation: data-pulse 2s infinite;
+                }
+                @keyframes data-pulse {
+                    0%, 100% { border-color: #00ff41; }
+                    50% { border-color: #00cc33; }
+                }
+                
+                .loading {
+                    display: inline-block;
+                    width: 20px;
+                    height: 20px;
+                    border: 3px solid rgba(0, 255, 65, 0.3);
+                    border-radius: 50%;
+                    border-top-color: #00ff41;
+                    animation: spin 1s ease-in-out infinite;
+                }
+                @keyframes spin {
+                    to { transform: rotate(360deg); }
+                }
+                
+                .error-message {
+                    background: rgba(255, 107, 107, 0.1);
+                    border: 1px solid #ff6b6b;
+                    border-radius: 5px;
+                    padding: 10px;
+                    margin: 10px 0;
+                    color: #ff6b6b;
+                }
+                
+                .success-message {
+                    background: rgba(81, 207, 102, 0.1);
+                    border: 1px solid #51cf66;
+                    border-radius: 5px;
+                    padding: 10px;
+                    margin: 10px 0;
+                    color: #51cf66;
+                }
+                
+                @media (max-width: 768px) {
+                    .grid { grid-template-columns: 1fr; padding: 0 10px; }
+                    .header h1 { font-size: 2em; }
+                    .status-bar { flex-direction: column; gap: 10px; }
+                    .positions-table { font-size: 0.8em; }
+                    .btn { padding: 8px 16px; font-size: 0.9em; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>🏛️ PHOENIX 95 COMPLETE SYSTEM</h1>
+                <div class="subtitle">
+                    <span class="excellent">● LIVE TRADING ●</span>
+                    <span class="good">HEDGE FUND GRADE</span>
+                    <span class="excellent">● REAL-TIME AI ●</span>
+                </div>
+            </div>
+            
+            <div class="status-bar">
+                <div class="connection-status">
+                    <div class="status-dot" id="websocket-dot"></div>
+                    <span>WebSocket: <span id="websocket-status">연결 중...</span></span>
+                </div>
+                <div>시스템 시간: <span id="system-time">--:--:--</span></div>
+                <div>업타임: <span id="system-uptime">계산 중...</span></div>
+                <div>AI 분석률: <span id="ai-analysis-rate" class="excellent">--</span></div>
+            </div>
+            
+            <div class="grid">
+                <!-- 실시간 포트폴리오 성과 -->
+                <div class="card">
+                    <h3>💰 Portfolio Performance</h3>
+                    <div class="metric">
+                        <span class="label">총 P&L:</span>
+                        <span class="value excellent" id="total-pnl">$0.00</span>
+                    </div>
+                    <div class="metric">
+                        <span class="label">일일 P&L:</span>
+                        <span class="value good" id="daily-pnl">$0.00</span>
+                    </div>
+                    <div class="metric">
+                        <span class="label">승률:</span>
+                        <span class="value good" id="win-rate">0%</span>
+                    </div>
+                    <div class="metric">
+                        <span class="label">활성 포지션:</span>
+                        <span class="value" id="active-positions-count">0</span>
+                    </div>
+                    <div class="metric">
+                        <span class="label">총 거래수:</span>
+                        <span class="value" id="total-trades">0</span>
+                    </div>
+                </div>
+                
+                <!-- 활성 포지션 -->
+                <div class="card">
+                    <h3>📊 Active Positions</h3>
+                    <div id="positions-container">
+                        <table class="positions-table">
+                            <thead>
+                                <tr>
+                                    <th>심볼</th>
+                                    <th>방향</th>
+                                    <th>크기</th>
+                                    <th>P&L</th>
+                                    <th>%</th>
+                                    <th>액션</th>
+                                </tr>
+                            </thead>
+                            <tbody id="positions-tbody">
+                                <tr><td colspan="6" style="text-align: center;">
+                                    <div class="loading"></div> 로딩 중...
+                                </td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- 시스템 상태 -->
+                <div class="card">
+                    <h3>💻 System Status</h3>
+                    <div class="metric">
+                        <span class="label">메모리 사용률:</span>
+                        <span class="value good" id="memory-usage">0%</span>
+                    </div>
+                    <div class="metric">
+                        <span class="label">CPU 사용률:</span>
+                        <span class="value good" id="cpu-usage">0%</span>
+                    </div>
+                    <div class="metric">
+                        <span class="label">WebSocket 클라이언트:</span>
+                        <span class="value" id="websocket-clients">0</span>
+                    </div>
+                    <div class="metric">
+                        <span class="label">AI 엔진:</span>
+                        <span class="value excellent">ENHANCED ACTIVE</span>
+                    </div>
+                    <div class="metric">
+                        <span class="label">거래소 연결:</span>
+                        <span class="value good" id="exchange-status">연결됨</span>
+                    </div>
+                </div>
+                
+                <!-- Phoenix 95 AI Analytics -->
+                <div class="card">
+                    <h3>🧠 Phoenix 95 AI Analytics</h3>
+                    <div class="metric">
+                        <span class="label">총 분석 수:</span>
+                        <span class="value" id="total-analyses">0</span>
+                    </div>
+                    <div class="metric">
+                        <span class="label">실행률:</span>
+                        <span class="value excellent" id="execution-rate">0%</span>
+                    </div>
+                    <div class="metric">
+                        <span class="label">평균 신뢰도:</span>
+                        <span class="value excellent" id="avg-confidence">0%</span>
+                    </div>
+                    <div class="metric">
+                        <span class="label">평균 분석 시간:</span>
+                        <span class="value good" id="avg-analysis-time">0ms</span>
+                    </div>
+                    <div class="metric">
+                        <span class="label">신뢰도 임계값:</span>
+                        <span class="value warning" id="confidence-threshold">75%</span>
+                    </div>
+                </div>
+                
+                <!-- 실시간 가격 -->
+                <div class="card">
+                    <h3>📈 Real-time Prices</h3>
+                    <div id="price-stream-data">
+                        <div class="real-time-data" id="btc-data">
+                            <div style="display: flex; justify-content: space-between;">
+                                <span class="excellent">BTC/USDT:</span>
+                                <span id="btc-price" class="good">$0.00</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 0.9em;">
+                                <span>24h 변동:</span>
+                                <span id="btc-change">0%</span>
+                            </div>
+                        </div>
+                        <div class="real-time-data" id="eth-data">
+                            <div style="display: flex; justify-content: space-between;">
+                                <span class="excellent">ETH/USDT:</span>
+                                <span id="eth-price" class="good">$0.00</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 0.9em;">
+                                <span>24h 변동:</span>
+                                <span id="eth-change">0%</span>
+                            </div>
+                        </div>
+                        <div class="real-time-data" id="ada-data">
+                            <div style="display: flex; justify-content: space-between;">
+                                <span class="excellent">ADA/USDT:</span>
+                                <span id="ada-price" class="good">$0.00</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 0.9em;">
+                                <span>24h 변동:</span>
+                                <span id="ada-change">0%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 제어 패널 -->
+                <div class="card">
+                    <h3>🎮 Control Panel</h3>
+                    <div style="display: grid; gap: 10px;">
+                        <button class="btn" onclick="refreshAllData()">🔄 전체 새로고침</button>
+                        <button class="btn btn-danger" onclick="emergencyStop()">🛑 비상 정지</button>
+                        <button class="btn" onclick="requestManualAnalysis()">🧠 수동 분석</button>
+                    </div>
+                    <div style="margin-top: 15px; padding: 15px; background: rgba(255, 107, 107, 0.1); border-radius: 5px;">
+                        <div class="excellent">⚡ LIVE TRADING ACTIVE</div>
+                        <small style="opacity: 0.8;">
+                            테스트넷 모드: <span id="testnet-mode" class="warning">확인 중...</span>
+                        </small>
+                    </div>
+                    <div id="message-container" style="margin-top: 10px;">
+                        <!-- 메시지들이 여기에 표시됩니다 -->
+                    </div>
+                </div>
+            </div>
+            
+            <script>
+                // WebSocket 연결
+                let ws = null;
+                let reconnectAttempts = 0;
+                const maxReconnectAttempts = 5;
+                let reconnectTimeout = null;
+                
+                function connectWebSocket() {
+                    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                    const wsUrl = `${protocol}//${window.location.host}/ws`;
+                    
+                    // 기존 연결이 있으면 정리
+                    if (ws) {
+                        ws.close();
+                    }
+                    
+                    ws = new WebSocket(wsUrl);
+                    
+                    ws.onopen = function() {
+                        console.log('WebSocket 연결 성공');
+                        updateWebSocketStatus('connected');
+                        reconnectAttempts = 0;
+                        
+                        // 재연결 타이머 정리
+                        if (reconnectTimeout) {
+                            clearTimeout(reconnectTimeout);
+                            reconnectTimeout = null;
+                        }
+                        
+                        // 초기 데이터 요청
+                        if (ws.readyState === WebSocket.OPEN) {
+                            ws.send(JSON.stringify({
+                                type: 'request_update',
+                                update_type: 'all'
+                            }));
+                        }
+                    };
+                    
+                    ws.onmessage = function(event) {
+                        try {
+                            const data = JSON.parse(event.data);
+                            handleWebSocketMessage(data);
+                        } catch (e) {
+                            console.error('WebSocket 메시지 파싱 오류:', e);
+                        }
+                    };
+                    
+                    ws.onclose = function(event) {
+                        console.log('WebSocket 연결 종료:', event.code, event.reason);
+                        updateWebSocketStatus('disconnected');
+                        
+                        // 자동 재연결
+                        if (reconnectAttempts < maxReconnectAttempts) {
+                            reconnectAttempts++;
+                            const delay = 5000 * reconnectAttempts; // 지수적 백오프
+                            console.log(`${delay/1000}초 후 재연결 시도 (${reconnectAttempts}/${maxReconnectAttempts})`);
+                            
+                            reconnectTimeout = setTimeout(connectWebSocket, delay);
+                        } else {
+                            console.error('최대 재연결 시도 횟수 초과');
+                            showMessage('WebSocket 연결 실패. 페이지를 새로고침해주세요.', 'error');
+                        }
+                    };
+                    
+                    ws.onerror = function(error) {
+                        console.error('WebSocket 오류:', error);
+                        updateWebSocketStatus('error');
+                    };
+                }
+                
+                function handleWebSocketMessage(data) {
+                    try {
+                        switch (data.type) {
+                            case 'portfolio_metrics':
+                                updatePortfolioMetrics(data.data);
+                                break;
+                            case 'active_positions':
+                                updateActivePositions(data.data);
+                                break;
+                            case 'system_status':
+                                updateSystemStatus(data.data);
+                                break;
+                            case 'price_update':
+                                updatePriceData(data.data);
+                                break;
+                            case 'info':
+                                showMessage(data.message, 'success');
+                                break;
+                            case 'error':
+                                showMessage(data.message, 'error');
+                                break;
+                            default:
+                                console.log('알 수 없는 메시지 타입:', data.type, data);
+                        }
+                    } catch (e) {
+                        console.error('메시지 처리 오류:', e);
+                    }
+                }
+                
+                function updateWebSocketStatus(status) {
+                    const dot = document.getElementById('websocket-dot');
+                    const statusText = document.getElementById('websocket-status');
+                    
+                    if (status === 'connected') {
+                        dot.className = 'status-dot good';
+                        statusText.textContent = '연결됨';
+                        statusText.className = 'good';
+                    } else if (status === 'disconnected') {
+                        dot.className = 'status-dot warning';
+                        statusText.textContent = '연결 해제';
+                        statusText.className = 'warning';
+                    } else if (status === 'error') {
+                        dot.className = 'status-dot danger';
+                        statusText.textContent = '오류';
+                        statusText.className = 'danger';
+                    }
+                }
+                
+                function updatePortfolioMetrics(data) {
+                    const elements = {
+                        'total-pnl': formatCurrency(data.total_pnl || 0),
+                        'daily-pnl': formatCurrency(data.daily_pnl || 0),
+                        'win-rate': formatPercentage(data.win_rate || 0),
+                        'active-positions-count': data.active_positions || 0,
+                        'total-trades': data.total_trades || 0
+                    };
+                    
+                    Object.entries(elements).forEach(([id, value]) => {
+                        const element = document.getElementById(id);
+                        if (element) {
+                            element.textContent = value;
+                            
+                            if (id.includes('pnl')) {
+                                const numValue = parseFloat(value.replace(/[^-0-9.]/g, ''));
+                                element.className = numValue >= 0 ? 'value excellent' : 'value danger';
+                            }
+                        }
+                    });
+                }
+                
+                function updateActivePositions(positions) {
+                    const tbody = document.getElementById('positions-tbody');
+                    
+                    if (!positions || positions.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; opacity: 0.6;">활성 포지션 없음</td></tr>';
+                        return;
+                    }
+                    
+                    tbody.innerHTML = positions.map(pos => `
+                        <tr>
+                            <td class="excellent">${pos.symbol}</td>
+                            <td class="${pos.side === 'buy' ? 'good' : 'warning'}">${pos.side.toUpperCase()}</td>
+                            <td>${parseFloat(pos.amount).toFixed(4)}</td>
+                            <td class="${pos.pnl >= 0 ? 'excellent' : 'danger'}">${formatCurrency(pos.pnl)}</td>
+                            <td class="${pos.pnl_percent >= 0 ? 'excellent' : 'danger'}">${pos.pnl_percent?.toFixed(2)}%</td>
+                            <td>
+                                <button class="btn btn-danger" style="font-size: 0.7em; padding: 4px 8px;" 
+                                        onclick="closePosition(${pos.id})">청산</button>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+                
+                function updateSystemStatus(data) {
+                    if (data.memory_percent !== undefined) {
+                        const memoryEl = document.getElementById('memory-usage');
+                        memoryEl.textContent = `${data.memory_percent}%`;
+                        memoryEl.className = data.memory_percent > 85 ? 'value danger' : 
+                                           data.memory_percent > 70 ? 'value warning' : 'value good';
+                    }
+                    
+                    if (data.cpu_percent !== undefined) {
+                        const cpuEl = document.getElementById('cpu-usage');
+                        cpuEl.textContent = `${data.cpu_percent}%`;
+                        cpuEl.className = data.cpu_percent > 80 ? 'value danger' : 
+                                         data.cpu_percent > 60 ? 'value warning' : 'value good';
+                    }
+                    
+                    if (data.connected_clients !== undefined) {
+                        document.getElementById('websocket-clients').textContent = data.connected_clients;
+                    }
+                    
+                    if (data.uptime_seconds !== undefined) {
+                        document.getElementById('system-uptime').textContent = formatUptime(data.uptime_seconds);
+                    }
+                    
+                    if (data.ai_engine_stats) {
+                        updateAIPerformance(data.ai_engine_stats);
+                    }
+                }
+                
+                function updatePriceData(priceData) {
+                    const symbol = priceData.symbol.replace('/', '').toLowerCase();
+                    
+                    const priceElementId = `${symbol.substring(0,3)}-price`;
+                    const changeElementId = `${symbol.substring(0,3)}-change`;
+                    
+                    const priceEl = document.getElementById(priceElementId);
+                    const changeEl = document.getElementById(changeElementId);
+                    
+                    if (priceEl && changeEl) {
+                        priceEl.textContent = formatCurrency(priceData.price);
+                        changeEl.textContent = `${priceData.change_24h?.toFixed(2)}%`;
+                        changeEl.className = priceData.change_24h >= 0 ? 'excellent' : 'danger';
+                    }
+                }
+                
+                function updateAIPerformance(stats) {
+                    const elements = {
+                        'total-analyses': stats.total_analyses || 0,
+                        'execution-rate': `${stats.execution_rate || 0}%`,
+                        'avg-confidence': `${(stats.avg_confidence * 100 || 0).toFixed(1)}%`,
+                        'avg-analysis-time': `${stats.avg_execution_time_ms || 0}ms`,
+                        'confidence-threshold': `${stats.confidence_threshold * 100 || 75}%`
+                    };
+                    
+                    Object.entries(elements).forEach(([id, value]) => {
+                        const element = document.getElementById(id);
+                        if (element) {
+                            element.textContent = value;
+                        }
+                    });
+                    
+                    document.getElementById('ai-analysis-rate').textContent = `${stats.execution_rate || 0}%`;
+                }
+                
+                function formatCurrency(value) {
+                    const num = parseFloat(value) || 0;
+                    return `$${num.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                }
+                
+                function formatPercentage(value) {
+                    const num = parseFloat(value) || 0;
+                    return `${(num * 100).toFixed(1)}%`;
+                }
+                
+                function formatUptime(seconds) {
+                    const days = Math.floor(seconds / 86400);
+                    const hours = Math.floor((seconds % 86400) / 3600);
+                    const minutes = Math.floor((seconds % 3600) / 60);
+                    
+                    if (days > 0) return `${days}d ${hours}h ${minutes}m`;
+                    if (hours > 0) return `${hours}h ${minutes}m`;
+                    return `${minutes}m`;
+                }
+                
+                function updateSystemTime() {
+                    document.getElementById('system-time').textContent = new Date().toLocaleTimeString('ko-KR');
+                }
+                
+                function showMessage(message, type = 'info') {
+                    const container = document.getElementById('message-container');
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = type === 'error' ? 'error-message' : 'success-message';
+                    messageDiv.textContent = message;
+                    
+                    container.appendChild(messageDiv);
+                    
+                    // 5초 후 메시지 제거
+                    setTimeout(() => {
+                        if (messageDiv.parentNode) {
+                            messageDiv.parentNode.removeChild(messageDiv);
+                        }
+                    }, 5000);
+                }
+                
+                async function refreshAllData() {
+                    try {
+                        if (ws && ws.readyState === WebSocket.OPEN) {
+                            ws.send(JSON.stringify({
+                                type: 'request_update',
+                                update_type: 'all'
+                            }));
+                            showMessage('데이터 새로고침 요청됨', 'success');
+                        } else {
+                            throw new Error('WebSocket 연결이 없습니다');
+                        }
+                    } catch (error) {
+                        showMessage(`새로고침 실패: ${error.message}`, 'error');
+                    }
+                }
+                
+                async function emergencyStop() {
+                    if (confirm('⚠️ 정말로 비상 정지하시겠습니까? 모든 활성 포지션이 청산됩니다.')) {
+                        try {
+                            const response = await fetch('/api/emergency-stop', {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'}
+                            });
+                            const result = await response.json();
+                            
+                            if (response.ok) {
+                                showMessage(`비상 정지 완료: ${result.message}`, 'success');
+                            } else {
+                                throw new Error(result.error || '알 수 없는 오류');
+                            }
+                        } catch (error) {
+                            showMessage(`비상 정지 실패: ${error.message}`, 'error');
+                        }
+                    }
+                }
+                
+                async function closePosition(positionId) {
+                    if (confirm(`포지션 ${positionId}를 청산하시겠습니까?`)) {
+                        try {
+                            const response = await fetch('/api/close-position', {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({trade_id: positionId})
+                            });
+                            const result = await response.json();
+                            
+                            if (response.ok) {
+                                showMessage(`포지션 청산 완료: ${result.message}`, 'success');
+                                // 포지션 데이터 즉시 새로고침
+                                if (ws && ws.readyState === WebSocket.OPEN) {
+                                    ws.send(JSON.stringify({
+                                        type: 'request_update',
+                                        update_type: 'positions'
+                                    }));
+                                }
+                            } else {
+                                throw new Error(result.error || '알 수 없는 오류');
+                            }
+                        } catch (error) {
+                            showMessage(`청산 실패: ${error.message}`, 'error');
+                        }
+                    }
+                }
+                
+                async function requestManualAnalysis() {
+                    try {
+                        if (ws && ws.readyState === WebSocket.OPEN) {
+                            ws.send(JSON.stringify({
+                                type: 'manual_analysis_request'
+                            }));
+                            showMessage('수동 분석 요청됨', 'success');
+                        } else {
+                            throw new Error('WebSocket 연결이 없습니다');
+                        }
+                    } catch (error) {
+                        showMessage(`수동 분석 요청 실패: ${error.message}`, 'error');
+                    }
+                }
+                
+                // 테스트넷 모드 확인
+                async function checkTestnetMode() {
+                    try {
+                        const response = await fetch('/api/system-health');
+                        const data = await response.json();
+                        
+                        const testnetEl = document.getElementById('testnet-mode');
+                        if (testnetEl) {
+                            testnetEl.textContent = data.exchange ? '실거래' : '테스트넷';
+                            testnetEl.className = data.exchange ? 'danger' : 'warning';
+                        }
+                    } catch (error) {
+                        console.error('테스트넷 모드 확인 실패:', error);
+                    }
+                }
+                
+                // 초기화
+                document.addEventListener('DOMContentLoaded', function() {
+                    console.log('페이지 로드 완료, WebSocket 연결 시작');
+                    connectWebSocket();
+                    setInterval(updateSystemTime, 1000);
+                    checkTestnetMode();
+                    
+                    // 주기적으로 테스트넷 모드 확인
+                    setInterval(checkTestnetMode, 30000); // 30초마다
+                });
+                
+                // 페이지 언로드 시 WebSocket 정리
+                window.addEventListener('beforeunload', function() {
+                    if (ws) {
+                        ws.close();
+                    }
+                });
+                
+                // 연결 상태 모니터링
+                setInterval(function() {
+                    if (ws && ws.readyState === WebSocket.CLOSED) {
+                        console.log('WebSocket 연결이 끊어짐, 재연결 시도');
+                        connectWebSocket();
+                    }
+                }, 10000); // 10초마다 확인
+            </script>
+        </body>
+        </html>
+        """
+        return web.Response(text=html_content, content_type='text/html')
+    
+    async def status_handler(self, request):
+        """시스템 상태 API"""
+        try:
+            return web.json_response({
+                "status": "running",
+                "timestamp": datetime.now().isoformat(),
+                "version": "Phoenix95-Complete-v1.0-Fixed",
+                "testnet": CONFIG.get('testnet', True)
+            })
+        except Exception as e:
+            logger.error(f"상태 조회 오류: {e}")
+            return web.json_response({"error": str(e)}, status=500)
+    
+    async def metrics_handler(self, request):
+        """메트릭 API"""
+        try:
+            result = await self.system.db_manager.fetch_safe(
+                "SELECT * FROM portfolio_metrics ORDER BY calculated_at DESC LIMIT 1"
+            )
+            
+            metrics = result[0] if result else {}
+            memory = psutil.virtual_memory()
+            
+            response_data = {
+                "total_pnl": float(metrics.get('total_pnl', 0)),
+                "daily_pnl": float(metrics.get('daily_pnl', 0)),
+                "active_positions": metrics.get('active_positions', 0),
+                "total_trades": metrics.get('total_trades', 0),
+                "win_rate": float(metrics.get('win_rate', 0)),
+                "memory_percent": round(memory.percent, 1),
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            return web.json_response(response_data)
+            
+        except Exception as e:
+            logger.error(f"메트릭 조회 오류: {e}")
+            return web.json_response({"error": str(e)}, status=500)
+    
+    async def positions_handler(self, request):
+        """포지션 API"""
+        try:
+            positions = await self.system.monitor.get_active_positions()
+            return web.json_response({"positions": positions})
+        except Exception as e:
+            logger.error(f"포지션 조회 오류: {e}")
+            return web.json_response({"error": str(e)}, status=500)
+    
+    async def trades_handler(self, request):
+        """거래 내역 API"""
+        try:
+            trades = await self.system.db_manager.fetch_safe(
+                "SELECT * FROM trades ORDER BY created_at DESC LIMIT 100"
+            )
+            
+            trade_list = []
+            for trade in trades:
+                trade_dict = dict(trade)
+                # Decimal을 float로 변환하고 datetime을 문자열로 변환
+                for key, value in trade_dict.items():
+                    if hasattr(value, '__float__'):
+                        trade_dict[key] = float(value)
+                    elif isinstance(value, datetime):
+                        trade_dict[key] = value.isoformat()
+                    elif value is None:
+                        trade_dict[key] = None
+                trade_list.append(trade_dict)
+            
+            return web.json_response({"trades": trade_list})
+        except Exception as e:
+            logger.error(f"거래 내역 조회 오류: {e}")
+            return web.json_response({"error": str(e)}, status=500)
+    
+    async def ai_performance_handler(self, request):
+        """AI 성능 API"""
+        try:
+            if hasattr(self.system, 'ai_engine') and self.system.ai_engine:
+                stats = self.system.ai_engine.get_performance_stats()
+                return web.json_response(stats)
+            else:
+                return web.json_response({"error": "AI 엔진이 초기화되지 않음"}, status=503)
+        except Exception as e:
+            logger.error(f"AI 성능 조회 오류: {e}")
+            return web.json_response({"error": str(e)}, status=500)
+    
+    async def price_stream_handler(self, request):
+        """가격 스트림 API"""
+        try:
+            prices = {}
+            for symbol in CONFIG['symbols']:
+                if hasattr(self.system, 'price_stream') and self.system.price_stream:
+                    price_data = self.system.price_stream.get_price_data(symbol)
+                    if price_data:
+                        prices[symbol] = price_data
+            
+            return web.json_response({"prices": prices})
+        except Exception as e:
+            logger.error(f"가격 스트림 조회 오류: {e}")
+            return web.json_response({"error": str(e)}, status=500)
+    
+    async def system_health_handler(self, request):
+        """시스템 헬스 API"""
+        try:
+            health_status = {
+                "database": self.system.db_manager.pool is not None,
+                "redis": self.system.redis_manager.redis is not None,
+                "exchange": self.system.exchange_manager.connection_status,
+                "price_stream": getattr(self.system.price_stream, 'running', False),
+                "ai_engine": hasattr(self.system, 'ai_engine') and self.system.ai_engine is not None,
+                "testnet": CONFIG.get('testnet', True),
+                "overall": "healthy"
+            }
+            
+            # 전체 상태 판정
+            critical_components = ["database", "ai_engine"]
+            if not all(health_status[comp] for comp in critical_components):
+                health_status["overall"] = "unhealthy"
+            elif not all(health_status[comp] for comp in ["database", "redis", "exchange", "ai_engine"]):
+                health_status["overall"] = "degraded"
+            
+            return web.json_response(health_status)
+        except Exception as e:
+            logger.error(f"시스템 헬스 조회 오류: {e}")
+            return web.json_response({"error": str(e)}, status=500)
+    
+    async def close_position_handler(self, request):
+        """포지션 청산 API"""
+        try:
+            data = await request.json()
+            trade_id = data.get('trade_id')
+            
+            if not trade_id:
+                return web.json_response({"error": "trade_id required"}, status=400)
+            
+            # trade_id를 정수로 변환
+            try:
+                trade_id = int(trade_id)
+            except (ValueError, TypeError):
+                return web.json_response({"error": "Invalid trade_id"}, status=400)
+            
+            result = await self.system.executor.close_position(trade_id)
+            
+            # 상태 코드 결정
+            status_code = 200
+            if result.get('status') in ['NOT_FOUND', 'ERROR']:
+                status_code = 400
+            elif result.get('status') == 'FAILED':
+                status_code = 500
+            
+            return web.json_response(result, status=status_code)
+            
+        except Exception as e:
+            logger.error(f"포지션 청산 오류: {e}")
+            return web.json_response({"error": str(e)}, status=500)
+    
+    async def emergency_stop_handler(self, request):
+        """비상 정지 API"""
+        try:
+            # 모든 활성 포지션 조회
+            active_trades = await self.system.db_manager.fetch_safe(
+                "SELECT id FROM trades WHERE status = 'active'"
+            )
+            
+            closed_count = 0
+            failed_count = 0
+            
+            # 각 포지션 청산 시도
+            for trade in active_trades:
+                try:
+                    result = await self.system.executor.close_position(trade['id'])
+                    if result.get('status') == 'CLOSED':
+                        closed_count += 1
+                    else:
+                        failed_count += 1
+                except Exception as e:
+                    logger.error(f"포지션 {trade['id']} 청산 실패: {e}")
+                    failed_count += 1
+            
+            # 신호 생성 중지
+            if hasattr(self.system, 'signal_generator') and self.system.signal_generator:
+                self.system.signal_generator.stop_generation()
+            
+            # 알림 전송
+            total_positions = len(active_trades)
+            if total_positions > 0:
+                await self.system.notification_manager.send_alert(
+                    f"🚨 비상 정지 실행: {closed_count}/{total_positions}개 포지션 청산 (실패: {failed_count}개)", 
+                    'critical'
+                )
+            else:
+                await self.system.notification_manager.send_alert(
+                    "🚨 비상 정지 실행: 활성 포지션 없음", 'info'
+                )
+            
+            return web.json_response({
+                "status": "success",
+                "message": f"비상 정지 완료. {closed_count}개 포지션 청산됨 (실패: {failed_count}개)",
+                "closed_positions": closed_count,
+                "failed_positions": failed_count,
+                "total_positions": total_positions
+            })
+            
+        except Exception as e:
+            logger.error(f"비상 정지 오류: {e}")
+            await self.system.notification_manager.send_alert(f"비상 정지 실패: {e}", 'critical')
+            return web.json_response({"error": str(e)}, status=500)
+    
+    async def health_handler(self, request):
+        """헬스체크 (간단한 응답)"""
+        return web.json_response({"status": "healthy", "timestamp": datetime.now().isoformat()})
+
+# ================== 시스템 확장 메서드들 ==================
+class CompletePhoenix95System:
+    """시스템 확장 메서드들"""
+    
+    async def _signal_processing_loop(self):
+        """실시간 신호 처리 루프 (개선된 버전)"""
+        logger.info("신호 처리 루프 시작")
+        
+        try:
+            # 신호 생성기 시작
+            signal_gen = self.signal_generator.start_signal_generation()
+            
+            async for signal in signal_gen:
+                try:
+                    if self._shutdown_event.is_set():
+                        break
+                    
+                    # 신호를 큐에 추가 (논블로킹)
+                    try:
+                        self.signal_processing_queue.put_nowait(signal)
+                    except asyncio.QueueFull:
+                        logger.warning("신호 처리 큐가 가득참 - 오래된 신호 제거")
+                        try:
+                            self.signal_processing_queue.get_nowait()
+                            self.signal_processing_queue.put_nowait(signal)
+                        except asyncio.QueueEmpty:
+                            pass
+                    
+                    # AI 분석
+                    analysis = await self.ai_engine.analyze_signal_enhanced(signal)
+                    logger.info(f"신호 분석 완료: {signal['symbol']} -> {analysis.get('action')}")
+                    
+                    # 거래 실행 결정
+                    if analysis.get('action') == 'EXECUTE':
+                        analysis['symbol'] = signal['symbol']
+                        execution_result = await self.executor.execute_trade(analysis)
+                        
+                        if execution_result.get('status') == 'EXECUTED':
+                            trade_type = "모의" if execution_result.get('mock') else "실제"
+                            await self.notification_manager.send_alert(
+                                f"🚀 {trade_type} 거래 실행: {signal['symbol']} {analysis.get('position_size', 0):.4f} "
+                                f"(신뢰도: {analysis.get('confidence', 0):.3f})", 'success'
+                            )
+                            
+                            # 데이터베이스에 신호 기록
+                            await self._record_signal_analysis(signal, analysis)
+                        elif execution_result.get('status') == 'REJECTED':
+                            logger.info(f"거래 거부: {execution_result.get('reason')} (Level {execution_result.get('level', 'N/A')})")
+                        else:
+                            logger.warning(f"거래 실행 실패: {execution_result}")
+                    
+                except Exception as e:
+                    logger.error(f"신호 처리 오류: {e}")
+                    await asyncio.sleep(5)  # 오류 시 짧은 대기
+                
+        except asyncio.CancelledError:
+            logger.info("신호 처리 루프가 취소되었습니다")
+        except Exception as e:
+            logger.error(f"신호 처리 루프 오류: {e}")
+    
+    async def _record_signal_analysis(self, signal: Dict[str, Any], analysis: Dict[str, Any]):
+        """신호 분석 결과 데이터베이스 기록 (개선된 버전)"""
+        try:
+            await self.db_manager.execute_safe(
+                """INSERT INTO signals 
+                   (symbol, action, price, confidence, phoenix95_score, technical_score, 
+                    risk_score, sentiment_score, market_regime, rsi, macd, volume, 
+                    volatility, status) 
+                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)""",
+                signal['symbol'],
+                signal['action'],
+                signal['price'],
+                signal['confidence'],
+                analysis.get('phoenix95_score', 0),
+                analysis.get('technical_score', 0),
+                analysis.get('risk_score', 0),
+                analysis.get('sentiment_score', 0),
+                analysis.get('market_regime', 'UNKNOWN'),
+                signal.get('rsi', 50),
+                signal.get('macd', 0),
+                signal.get('volume', 0),
+                signal.get('volatility', 0),
+                'processed' if analysis.get('action') == 'EXECUTE' else 'expired'
+            )
+        except Exception as e:
+            logger.error(f"신호 기록 오류: {e}")
+
+# ================== 유틸리티 함수들 ==================
+def print_startup_banner():
+    """시작 배너 출력"""
+    banner = """
+╔══════════════════════════════════════════════════════════════════════════════════╗
+║                                                                                  ║
+║   🏛️  PHOENIX 95 - COMPLETE HEDGE FUND TRADING SYSTEM (FIXED)  🏛️             ║
+║                                                                                  ║
+║   ████████╗██████╗  █████╗ ██████╗ ██╗███╗   ██╗ ██████╗                       ║
+║   ╚══██╔══╝██╔══██╗██╔══██╗██╔══██╗██║████╗  ██║██╔════╝                       ║
+║      ██║   ██████╔╝███████║██║  ██║██║██╔██╗ ██║██║  ███╗                      ║
+║      ██║   ██╔══██╗██╔══██║██║  ██║██║██║╚██╗██║██║   ██║                      ║
+║      ██║   ██║  ██║██║  ██║██████╔╝██║██║ ╚████║╚██████╔╝                      ║
+║      ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚═╝╚═╝  ╚═══╝ ╚═════╝                       ║
+║                                                                                  ║
+║                        INSTITUTIONAL GRADE - ERROR FIXED                       ║
+║                        • Improved Error Handling                               ║
+║                        • Enhanced WebSocket Stability                          ║
+║                        • Better Resource Management                            ║
+║                        • Fixed Signal Processing                               ║
+║                        • Improved Database Connections                         ║
+║                        • Enhanced Type Safety                                  ║
+║                                                                                  ║
+╚══════════════════════════════════════════════════════════════════════════════════╝
+    """
+    print(banner)
+
+def print_system_info():
+    """시스템 정보 출력"""
+    testnet_status = "테스트넷" if CONFIG.get('testnet', True) else "실거래"
+    
+    info = f"""
+🔧 시스템 설정:
+   • 환경: {testnet_status} 모드
+   • 신뢰도 임계값: {CONFIG.get('confidence_threshold', 0.75)}
+   • 최대 레버리지: {CONFIG.get('max_leverage', 20)}x
+   • 최대 포지션: {CONFIG.get('max_positions', 10)}개
+   • 거래 리스크: {CONFIG.get('risk_per_trade', 0.02)*100}%
+   • 모니터링 간격: {CONFIG.get('monitoring_interval', 3)}초
+
+📊 거래 심볼:
+   • {', '.join(CONFIG.get('symbols', []))}
+
+🌐 웹 인터페이스:
+   • 대시보드: http://localhost:{CONFIG.get('websocket_port', 8100)}
+   • WebSocket: ws://localhost:{CONFIG.get('websocket_port', 8100)}/ws
+   • API 헬스체크: http://localhost:{CONFIG.get('websocket_port', 8100)}/health
+
+⚠️  중요 알림:
+   • 현재 {testnet_status} 모드로 실행됩니다
+   • 모든 거래는 로그에 기록되며 데이터베이스에 저장됩니다
+   • 비상시 Ctrl+C 또는 /api/emergency-stop을 사용하세요
+   • 오류 수정 버전 - 안정성이 향상되었습니다
+    """
+    print(info)
+
+# ================== CLI 개선 ==================
+async def test_system_components():
+    """시스템 컴포넌트 테스트 (개선된 버전)"""
+    logger.info("시스템 컴포넌트 테스트 시작")
+    
+    try:
+        print("🔧 데이터베이스 연결 테스트...")
+        db_manager = DatabaseManager()
+        await db_manager.initialize()
+        await db_manager.close()
+        print("✅ 데이터베이스 연결 테스트 성공")
+        
+        print("🔧 Redis 연결 테스트...")
+        redis_manager = RedisManager()
+        await redis_manager.initialize()
+        await redis_manager.set_safe("test_key", "test_value", 10)
+        result = await redis_manager.get_safe("test_key")
+        await redis_manager.close()
+        if result == "test_value" or not redis_manager.redis:  # Fallback 모드도 허용
+            print("✅ Redis 연결 테스트 성공 (또는 Fallback 모드)")
+        else:
+            raise Exception("Redis 테스트 실패")
+        
+        print("🔧 거래소 연결 테스트...")
+        exchange_manager = ExchangeManager()
+        await exchange_manager.initialize()
+        price = await exchange_manager.fetch_current_price("BTC/USDT")
+        await exchange_manager.close()
+        if price > 0:
+            print(f"✅ 거래소 연결 테스트 성공 (BTC 가격: ${price:,.2f})")
+        else:
+            raise Exception("거래소 가격 조회 실패")
+        
+        print("🔧 알림 시스템 테스트...")
+        notification_manager = NotificationManager()
+        await notification_manager.initialize()
+        await notification_manager.send_alert("테스트 메시지", 'info')
+        await notification_manager.close()
+        print("✅ 알림 시스템 테스트 성공")
+        
+        print("\n🎉 모든 컴포넌트 테스트 성공!")
+        return True
+        
+    except Exception as e:
+        print(f"\n❌ 컴포넌트 테스트 실패: {e}")
+        logger.error(f"컴포넌트 테스트 실패: {e}")
+        return False
+
+# ================== 메인 실행 함수 ==================
+async def main_with_improved_error_handling():
+    """개선된 오류 처리를 가진 메인 함수"""
+    system = None
+    try:
+        # 시작 배너 출력
+        print_startup_banner()
+        print_system_info()
+        
+        # 시스템 생성
+        system = CompletePhoenix95System()
+        
+        # 시그널 핸들러 설정
+        setup_signal_handlers(system)
+        
+        print("🚀 시스템 초기화 중...")
+        await system.initialize_complete_system()
+        
+        print("🔄 백그라운드 작업 시작 중...")
+        # 백그라운드 작업들 시작
+        system.background_tasks = [
+            asyncio.create_task(system.monitor.start_monitoring()),
+            asyncio.create_task(system._signal_processing_loop()),
+            asyncio.create_task(system.websocket_handler.start_broadcasting()),
+        ]
+        
+        print("🌐 웹 서버 시작 중...")
+        # 웹 서버 시작
+        runner = web.AppRunner(system.dashboard.app)
+        await runner.setup()
+        site = web.TCPSite(runner, 'localhost', CONFIG['websocket_port'])
+        await site.start()
+        
+        print(f"\n🎉 Complete Phoenix 95 시스템 완전 시작!")
+        print(f"📊 대시보드: http://localhost:{CONFIG['websocket_port']}")
+        print(f"🔧 WebSocket: ws://localhost:{CONFIG['websocket_port']}/ws")
+        
+        testnet_status = "테스트넷" if CONFIG.get('testnet', True) else "실거래"
+        print(f"🛡️ 모드: {testnet_status}")
+        print("\n✨ 시스템이 성공적으로 시작되었습니다. 대시보드를 확인하세요!")
+        
+        # 무한 실행 (종료 이벤트까지)
+        await system._shutdown_event.wait()
+        
+    except KeyboardInterrupt:
+        print("\n⌨️ 사용자 중단 (Ctrl+C)")
+        logger.info("사용자 중단 (Ctrl+C)")
+    except Exception as e:
+        print(f"\n💥 시스템 치명적 오류: {e}")
+        logger.critical(f"시스템 치명적 오류: {e}")
+    finally:
+        if system:
+            print("\n🔄 시스템 안전 종료 중...")
+            try:
+                await system.shutdown_complete_system()
+                print("✅ Phoenix 95 시스템이 안전하게 종료되었습니다.")
+            except Exception as e:
+                print(f"⚠️ 종료 중 오류 발생: {e}")
+                logger.error(f"종료 중 오류: {e}")
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main_with_improved_error_handling())
+    except KeyboardInterrupt:
+        print("\n👋 Phoenix 95 시스템을 종료합니다.")
+    except Exception as e:
+        print(f"\n💥 예상치 못한 오류: {e}")
+        logger.critical(f"메인 실행 오류: {e}")
+
+print("""
+
+📚 추가 정보:
+   • 수정 사항: 오류 처리 개선, WebSocket 안정성 향상, 타입 안전성 강화
+   • 문서: https://github.com/your-repo/phoenix95
+   • 지원: support@phoenix95.trading
+   • 라이선스: MIT
+
+⚠️  면책사항:
+   이 소프트웨어는 교육 및 연구 목적으로 제공됩니다.
+   실제 거래에서 발생하는 손실
+
+# ================== 시스템 완성 부분 (CompletePhoenix95System 확장) ==================
+
+class CompletePhoenix95System:
+    """완전한 Phoenix 95 시스템 - 누락된 메서드들 추가"""
+    
+    async def start_complete_system(self):
+        """완전한 시스템 시작 (메인 진입점)"""
+        try:
+            await self.initialize_complete_system()
+            
+            # 백그라운드 작업들 시작
+            self.background_tasks = [
+                # 기본 모니터링
+                asyncio.create_task(self.monitor.start_monitoring()),
+                
+                # 신호 처리
+                asyncio.create_task(self._signal_processing_loop()),
+                
+                # WebSocket 브로드캐스팅
+                asyncio.create_task(self.websocket_handler.start_broadcasting()),
+                
+                # 성능 추적
+                asyncio.create_task(self._performance_tracking_loop()),
+                
+                # 자동 백업
+                asyncio.create_task(self._automated_backup_loop()),
+                
+                # 시스템 헬스 체크
+                asyncio.create_task(self._system_health_check_loop()),
+            ]
+            
+            # 웹 서버 시작
+            runner = web.AppRunner(self.dashboard.app)
+            await runner.setup()
+            site = web.TCPSite(runner, 'localhost', CONFIG['websocket_port'])
+            await site.start()
+            
+            logger.info("🎉 Complete Phoenix 95 시스템 완전 시작!")
+            logger.info(f"📊 대시보드: http://localhost:{CONFIG['websocket_port']}")
+            logger.info(f"🔧 WebSocket: ws://localhost:{CONFIG['websocket_port']}/ws")
+            logger.info(f"🛡️ 시스템 상태: {self.system_health}")
+            
+            # 성공 알림
+            await self.notification_manager.send_alert(
+                f"Phoenix 95 시스템이 포트 {CONFIG['websocket_port']}에서 시작되었습니다", 'success'
+            )
+            
+            # 무한 실행 (종료 이벤트까지)
+            await self._shutdown_event.wait()
+            
+        except Exception as e:
+            logger.error(f"Complete 시스템 시작 오류: {e}")
+            await self.notification_manager.send_alert(f"시스템 시작 실패: {e}", 'critical')
+            raise
+    
+    async def _performance_tracking_loop(self):
+        """성능 추적 루프"""
+        while not self._shutdown_event.is_set():
+            try:
+                # AI 엔진 성능 통계
+                ai_stats = self.ai_engine.get_performance_stats()
+                
+                # 데이터베이스에 AI 성능 저장
+                await self.db_manager.execute_safe(
+                    """INSERT INTO ai_performance 
+                       (total_analyses, total_executions, execution_rate, avg_confidence, 
+                        avg_execution_time_ms, phoenix95_avg_score) 
+                       VALUES ($1, $2, $3, $4, $5, $6)""",
+                    ai_stats.get('total_analyses', 0),
+                    ai_stats.get('total_executions', 0),
+                    ai_stats.get('execution_rate', 0) / 100,  # 백분율을 소수로 변환
+                    ai_stats.get('avg_confidence', 0),
+                    ai_stats.get('avg_execution_time_ms', 0),
+                    ai_stats.get('avg_confidence', 0)  # phoenix95_avg_score 근사치
+                )
+                
+                # Redis에 성능 데이터 저장
+                await self.redis_manager.set_safe(
+                    "performance_stats",
+                    json.dumps(ai_stats),
+                    3600  # 1시간
+                )
+                
+                # 성능 알림
+                execution_rate = ai_stats.get('execution_rate', 0)
+                if execution_rate < 5:  # 5% 미만
+                    await self.notification_manager.send_alert(
+                        f"⚠️ 매우 낮은 거래 실행률: {execution_rate:.1f}% (신호 품질 확인 필요)", 'warning'
+                    )
+                elif execution_rate > 90:  # 90% 초과
+                    await self.notification_manager.send_alert(
+                        f"⚠️ 매우 높은 거래 실행률: {execution_rate:.1f}% (과도한 거래 주의)", 'warning'
+                    )
+                
+                await asyncio.sleep(300)  # 5분마다
+                
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"성능 추적 오류: {e}")
+                await asyncio.sleep(600)  # 오류 시 10분 대기
+    
+    async def _automated_backup_loop(self):
+        """자동 백업 루프"""
+        while not self._shutdown_event.is_set():
+            try:
+                await asyncio.sleep(CONFIG['backup_interval'])
+                
+                # 백업 생성
+                backup_data = {
+                    'timestamp': datetime.now().isoformat(),
+                    'active_trades_count': len(await self.monitor.get_active_positions()),
+                    'ai_performance': self.ai_engine.get_performance_stats(),
+                    'system_health': self.system_health,
+                    'config': CONFIG
+                }
+                
+                # Redis에 백업 데이터 저장
+                backup_key = f"auto_backup_{int(time.time())}"
+                await self.redis_manager.set_safe(
+                    backup_key,
+                    json.dumps(backup_data, default=str),
+                    86400 * 7  # 7일 보관
+                )
+                
+                # 시스템 로그에 기록
+                await self.db_manager.execute_safe(
+                    """INSERT INTO system_logs (level, component, message, metadata) 
+                       VALUES ($1, $2, $3, $4)""",
+                    'INFO',
+                    'BackupSystem',
+                    '자동 백업 완료',
+                    json.dumps({'backup_key': backup_key, 'data_size': len(json.dumps(backup_data, default=str))})
+                )
+                
+                logger.info(f"자동 백업 완료: {backup_key}")
+                
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"자동 백업 오류: {e}")
+                await asyncio.sleep(3600)  # 오류 시 1시간 대기
+    
+    async def _system_health_check_loop(self):
+        """시스템 헬스 체크 루프"""
+        while not self._shutdown_event.is_set():
+            try:
+                # 각 컴포넌트 상태 체크
+                health_status = {
+                    'database': self.db_manager.pool is not None,
+                    'redis': self.redis_manager.redis is not None,
+                    'exchange': self.exchange_manager.connection_status,
+                    'price_stream': self.price_stream.running if self.price_stream else False,
+                    'ai_engine': hasattr(self, 'ai_engine') and self.ai_engine is not None
+                }
+                
+                # 이전 상태와 비교하여 변화 감지
+                status_changed = []
+                for component, status in health_status.items():
+                    if self.system_health.get(component) != status:
+                        status_changed.append(f"{component}: {'OK' if status else 'FAIL'}")
+                        self.system_health[component] = status
+                
+                # 상태 변화 알림
+                if status_changed:
+                    await self.notification_manager.send_alert(
+                        f"🔧 시스템 상태 변화: {', '.join(status_changed)}", 'info'
+                    )
+                
+                # 전체 시스템 헬스 체크
+                healthy_components = sum(health_status.values())
+                total_components = len(health_status)
+                health_percentage = (healthy_components / total_components) * 100
+                
+                if health_percentage < 80:
+                    await self.notification_manager.send_alert(
+                        f"🚨 시스템 헬스 저하: {health_percentage:.0f}% ({healthy_components}/{total_components})", 'critical'
+                    )
+                elif health_percentage < 100:
+                    await self.notification_manager.send_alert(
+                        f"⚠️ 시스템 일부 장애: {health_percentage:.0f}% ({healthy_components}/{total_components})", 'warning'
+                    )
+                
+                await asyncio.sleep(60)  # 1분마다 체크
+                
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"시스템 헬스 체크 오류: {e}")
+                await asyncio.sleep(300)  # 오류 시 5분 대기
+
+# ================== CLI 파서 및 설정 관리 ==================
+def create_cli_parser():
+    """CLI 파서 생성"""
+    import argparse
+    
+    parser = argparse.ArgumentParser(
+        description='Phoenix 95 - Complete Hedge Fund Trading System (Fixed Version)',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+예제:
+  python phoenix95_complete_fixed.py                    # 일반 모드로 시작
+  python phoenix95_complete_fixed.py --test            # 컴포넌트 테스트
+  python phoenix95_complete_fixed.py --simulation      # 시뮬레이션 모드
+  python phoenix95_complete_fixed.py --port 8200       # 포트 8200에서 시작
+  python phoenix95_complete_fixed.py --production      # 프로덕션 모드 (실거래)
+        """
+    )
+    
+    parser.add_argument(
+        '--test', 
+        action='store_true', 
+        help='시스템 컴포넌트 테스트 실행'
+    )
+    
+    parser.add_argument(
+        '--simulation', 
+        action='store_true', 
+        help='시뮬레이션 모드로 실행 (위험도 낮춤)'
+    )
+    
+    parser.add_argument(
+        '--production',
+        action='store_true',
+        help='프로덕션 모드로 실행 (실거래 - 주의!)'
+    )
+    
+    parser.add_argument(
+        '--port', 
+        type=int, 
+        default=8100,
+        help='웹 서버 포트 (기본값: 8100)'
+    )
+    
+    parser.add_argument(
+        '--log-level', 
+        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'], 
+        default='INFO',
+        help='로그 레벨 설정'
+    )
+    
+    parser.add_argument(
+        '--config', 
+        type=str,
+        help='설정 파일 경로 (JSON 형식)'
+    )
+    
+    parser.add_argument(
+        '--symbols',
+        nargs='+',
+        help='거래할 심볼 목록 (예: BTC/USDT ETH/USDT)'
+    )
+    
+    parser.add_argument(
+        '--max-positions',
+        type=int,
+        help='최대 포지션 수'
+    )
+    
+    parser.add_argument(
+        '--risk-per-trade',
+        type=float,
+        help='거래당 리스크 비율 (0.01 = 1%)'
+    )
+    
+    return parser
+
+async def load_custom_config(config_path: str):
+    """사용자 정의 설정 로드"""
+    try:
+        async with aiofiles.open(config_path, 'r', encoding='utf-8') as f:
+            content = await f.read()
+            custom_config = json.loads(content)
+            
+        # CONFIG 업데이트
+        CONFIG.update(custom_config)
+        logger.info(f"사용자 정의 설정 로드됨: {config_path}")
+        
+    except Exception as e:
+        logger.error(f"설정 파일 로드 실패: {e}")
+        raise
+
+def apply_cli_args(args):
+    """CLI 인자를 CONFIG에 적용"""
+    try:
+        # 포트 설정
+        CONFIG['websocket_port'] = args.port
+        
+        # 프로덕션/시뮬레이션 모드
+        if args.production:
+            CONFIG['testnet'] = False
+            CONFIG['confidence_threshold'] = 0.8
+            CONFIG['risk_per_trade'] = 0.01  # 프로덕션에서는 더 보수적
+            logger.warning("⚠️ 프로덕션 모드 활성화 - 실제 거래가 실행됩니다!")
+        elif args.simulation:
+            CONFIG['testnet'] = True
+            CONFIG['max_positions'] = 3
+            CONFIG['risk_per_trade'] = 0.005  # 0.5%로 낮춤
+            logger.info("🎮 시뮬레이션 모드 활성화")
+        
+        # 심볼 설정
+        if args.symbols:
+            CONFIG['symbols'] = args.symbols
+            logger.info(f"거래 심볼 설정: {args.symbols}")
+        
+        # 최대 포지션 수
+        if args.max_positions:
+            CONFIG['max_positions'] = args.max_positions
+            logger.info(f"최대 포지션 수 설정: {args.max_positions}")
+        
+        # 거래당 리스크
+        if args.risk_per_trade:
+            CONFIG['risk_per_trade'] = args.risk_per_trade
+            logger.info(f"거래당 리스크 설정: {args.risk_per_trade*100}%")
+        
+    except Exception as e:
+        logger.error(f"CLI 인자 적용 오류: {e}")
+        raise
+
+# ================== 시뮬레이션 모드 ==================
+async def run_simulation_mode():
+    """시뮬레이션 모드 실행 (개선된 버전)"""
+    logger.info("🎮 시뮬레이션 모드로 시스템 시작")
+    
+    # 시뮬레이션 설정으로 CONFIG 수정
+    CONFIG.update({
+        'testnet': True,
+        'simulation_mode': True,
+        'max_positions': 3,
+        'risk_per_trade': 0.005,  # 0.5%로 더 낮춤
+        'confidence_threshold': 0.7,  # 더 낮은 임계값
+        'max_leverage': 10,  # 낮은 레버리지
+        'monitoring_interval': 5,  # 더 긴 모니터링 간격
+    })
+    
+    print("🎮 시뮬레이션 모드 설정:")
+    print(f"   • 테스트넷: {CONFIG['testnet']}")
+    print(f"   • 최대 포지션: {CONFIG['max_positions']}")
+    print(f"   • 거래당 리스크: {CONFIG['risk_per_trade']*100}%")
+    print(f"   • 신뢰도 임계값: {CONFIG['confidence_threshold']}")
+    print(f"   • 최대 레버리지: {CONFIG['max_leverage']}x")
+    
+    system = CompletePhoenix95System()
+    
+    try:
+        await system.start_complete_system()
+    except KeyboardInterrupt:
+        logger.info("시뮬레이션 모드 중단")
+        print("\n🎮 시뮬레이션 모드가 중단되었습니다.")
+    finally:
+        await system.shutdown_complete_system()
+
+# ================== 프로덕션 모드 확인 ==================
+def confirm_production_mode():
+    """프로덕션 모드 실행 확인"""
+    print("=" * 70)
+    print("⚠️  PRODUCTION MODE WARNING ⚠️")
+    print("=" * 70)
+    print("실제 거래가 실행됩니다!")
+    print("실제 자금으로 거래가 진행되며, 손실이 발생할 수 있습니다.")
+    print("프로덕션 모드를 계속하려면 'YES'를 정확히 입력하세요.")
+    print("=" * 70)
+    
+    confirmation = input("프로덕션 모드 실행을 확인합니다 (YES/no): ").strip()
+    
+    if confirmation != "YES":
+        print("프로덕션 모드가 취소되었습니다.")
+        print("시뮬레이션 모드로 전환합니다...")
+        return False
+    
+    print("🚨 프로덕션 모드가 확인되었습니다.")
+    return True
+
+# ================== 메인 실행 함수 (CLI 통합) ==================
+async def main_with_cli():
+    """CLI와 통합된 메인 함수"""
+    # CLI 파서 생성
+    parser = create_cli_parser()
+    args = parser.parse_args()
+    
+    # 로그 레벨 설정
+    logging.getLogger().setLevel(getattr(logging, args.log_level))
+    
+    try:
+        # 사용자 정의 설정 로드
+        if args.config:
+            await load_custom_config(args.config)
+        
+        # CLI 인자 적용
+        apply_cli_args(args)
+        
+        # 프로덕션 모드 확인
+        if args.production and not confirm_production_mode():
+            # 프로덕션 거부 시 시뮬레이션으로 전환
+            args.simulation = True
+            args.production = False
+            CONFIG['testnet'] = True
+        
+        # 테스트 모드
+        if args.test:
+            print("🔧 시스템 컴포넌트 테스트 시작...")
+            success = await test_system_components()
+            if success:
+                print("\n✅ 모든 테스트가 성공했습니다!")
+                print("이제 일반 모드로 시스템을 시작할 수 있습니다.")
+            else:
+                print("\n❌ 테스트 실패. 설정을 확인해주세요.")
+            return
+        
+        # 시뮬레이션 모드
+        if args.simulation:
+            await run_simulation_mode()
+            return
+        
+        # 일반 모드
+        await main_with_improved_error_handling()
+        
+    except Exception as e:
+        logger.critical(f"프로그램 실행 오류: {e}")
+        print(f"\n💥 실행 오류: {e}")
+
+# ================== Docker 설정 파일들 ==================
+def generate_docker_files():
+    """Docker 설정 파일들 생성"""
+    
+    # requirements.txt
+    requirements_txt = """
+aiohttp==3.8.6
+aiofiles==23.2.1
+asyncpg==0.29.0
+redis==5.0.1
+psutil==5.9.6
+python-multipart==0.0.6
+websockets==11.0.3
+numpy==1.24.3
+ccxt==4.1.0
+"""
+    
+    # docker-compose.yml
+    docker_compose_yml = """
+version: '3.8'
+
+services:
+  phoenix95:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8100:8100"
+    environment:
+      - DATABASE_URL=postgresql://trader:secure123@db:5432/phoenix95
+      - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=production
+      - BINANCE_API_KEY=${BINANCE_API_KEY:-test_key}
+      - BINANCE_SECRET=${BINANCE_SECRET:-test_secret}
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
+      - ./config:/app/config
+    networks:
+      - phoenix95_network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8100/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: phoenix95
+      POSTGRES_USER: trader
+      POSTGRES_PASSWORD: secure123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    command: >
+      postgres 
+      -c max_connections=100 
+      -c shared_buffers=256MB
+      -c effective_cache_size=512MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+    networks:
+      - phoenix95_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trader -d phoenix95"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    
+  redis:
+    image: redis:7-alpine
+    command: >
+      redis-server 
+      --maxmemory 256mb 
+      --maxmemory-policy allkeys-lru
+      --save 60 1000
+      --appendonly yes
+      --auto-aof-rewrite-percentage 100
+      --auto-aof-rewrite-min-size 64mb
+    volumes:
+      - redis_data:/data
+    networks:
+      - phoenix95_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # 선택적: Nginx 리버스 프록시
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - phoenix95
+    networks:
+      - phoenix95_network
+    profiles:
+      - production
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  phoenix95_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+"""
+
+    # Dockerfile
+    dockerfile = """
+FROM python:3.11-slim
+
+# 작업 디렉토리 설정
+WORKDIR /app
+
+# 시스템 패키지 설치
+RUN apt-get update && apt-get install -y \\
+    gcc \\
+    postgresql-client \\
+    curl \\
+    && rm -rf /var/lib/apt/lists/*
+
+# Python 의존성 설치
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip \\
+    && pip install --no-cache-dir -r requirements.txt
+
+# 애플리케이션 코드 복사
+COPY . .
+
+# 로그 및 설정 디렉토리 생성
+RUN mkdir -p /app/logs /app/config
+
+# 비root 사용자 생성
+RUN useradd --create-home --shell /bin/bash phoenix95 \\
+    && chown -R phoenix95:phoenix95 /app
+USER phoenix95
+
+# 포트 노출
+EXPOSE 8100
+
+# 헬스체크
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \\
+    CMD python -c "import requests; requests.get('http://localhost:8100/health')"
+
+# 애플리케이션 실행
+CMD ["python", "phoenix95_complete_fixed.py", "--production"]
+"""
+
+    # nginx.conf
+    nginx_conf = """
+events {
+    worker_connections 1024;
+}
+
+http {
+    upstream phoenix95 {
+        server phoenix95:8100;
+    }
+    
+    server {
+        listen 80;
+        server_name localhost;
+        
+        location / {
+            proxy_pass http://phoenix95;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+        
+        location /ws {
+            proxy_pass http://phoenix95;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+    }
+}
+"""
+
+    # .env.example
+    env_example = """
+# 데이터베이스 설정
+DATABASE_URL=postgresql://trader:secure123@localhost:5432/phoenix95
+
+# Redis 설정
+REDIS_URL=redis://localhost:6379/0
+
+# 바이낸스 API (실거래용)
+BINANCE_API_KEY=your_binance_api_key_here
+BINANCE_SECRET=your_binance_secret_here
+
+# 알림 설정 (선택사항)
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token
+TELEGRAM_CHAT_ID=your_telegram_chat_id
+
+# 시스템 설정
+ENVIRONMENT=development
+LOG_LEVEL=INFO
+"""
+
+    # init-db.sql
+    init_db_sql = """
+-- PostgreSQL 초기화 스크립트
+-- Phoenix 95 Trading System
+
+-- 권한 설정
+GRANT ALL PRIVILEGES ON DATABASE phoenix95 TO trader;
+
+-- 확장 설치
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pg_stat_statements";
+
+-- 성능 설정
+ALTER SYSTEM SET shared_preload_libraries = 'pg_stat_statements';
+ALTER SYSTEM SET track_activity_query_size = 2048;
+ALTER SYSTEM SET pg_stat_statements.track = 'all';
+"""
+
+    return {
+        'requirements.txt': requirements_txt.strip(),
+        'docker-compose.yml': docker_compose_yml.strip(),
+        'Dockerfile': dockerfile.strip(),
+        'nginx.conf': nginx_conf.strip(),
+        '.env.example': env_example.strip(),
+        'init-db.sql': init_db_sql.strip()
+    }
+
+# ================== 설정 파일 생성기 ==================
+def generate_config_files():
+    """설정 파일들 생성"""
+    
+    # config/development.json
+    development_config = {
+        "log_level": "DEBUG",
+        "confidence_threshold": 0.7,
+        "max_leverage": 10,
+        "monitoring_interval": 5,
+        "memory_threshold": 80,
+        "backup_interval": 1800,
+        "websocket_port": 8100,
+        "max_positions": 5,
+        "risk_per_trade": 0.01,
+        "min_confidence": 0.6,
+        "symbols": ["BTC/USDT", "ETH/USDT"],
+        "testnet": True,
+        "simulation_mode": True
+    }
+    
+    # config/production.json
+    production_config = {
+        "log_level": "INFO",
+        "confidence_threshold": 0.8,
+        "max_leverage": 20,
+        "monitoring_interval": 1,
+        "memory_threshold": 90,
+        "backup_interval": 3600,
+        "websocket_port": 8100,
+        "max_positions": 10,
+        "risk_per_trade": 0.02,
+        "min_confidence": 0.75,
+        "symbols": ["BTC/USDT", "ETH/USDT", "ADA/USDT", "DOT/USDT"],
+        "testnet": False,
+        "simulation_mode": False
+    }
+    
+    # config/trading_rules.json
+    trading_rules = {
+        "risk_management": {
+            "max_daily_loss": 1000.0,
+            "max_drawdown": 0.15,
+            "position_sizing": "kelly_criterion",
+            "stop_loss_pct": 0.02,
+            "take_profit_pct": 0.04
+        },
+        "execution_rules": {
+            "min_volume": 1000000,
+            "max_spread": 0.001,
+            "slippage_tolerance": 0.0005,
+            "order_timeout": 30
+        },
+        "phoenix95_settings": {
+            "boost_factor": 1.3,
+            "rsi_optimal_range": [30, 70],
+            "macd_threshold": 0.001,
+            "volume_multiplier": 1.5
+        }
+    }
+    
+    return {
+        'config/development.json': json.dumps(development_config, indent=2),
+        'config/production.json': json.dumps(production_config, indent=2),
+        'config/trading_rules.json': json.dumps(trading_rules, indent=2)
+    }
+
+# ================== 유틸리티 함수들 ==================
+def setup_project_structure():
+    """프로젝트 구조 설정"""
+    directories = [
+        'logs',
+        'config',
+        'data',
+        'backups',
+        'ssl'
+    ]
+    
+    for directory in directories:
+        os.makedirs(directory, exist_ok=True)
+        print(f"📁 디렉토리 생성: {directory}")
+    
+    # Docker 파일들 생성
+    docker_files = generate_docker_files()
+    for filename, content in docker_files.items():
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write(content)
+        print(f"📄 파일 생성: {filename}")
+    
+    # 설정 파일들 생성
+    config_files = generate_config_files()
+    for filepath, content in config_files.items():
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(content)
+        print(f"📄 파일 생성: {filepath}")
+    
+    print("\n✅ 프로젝트 구조 설정 완료!")
+
+def print_deployment_instructions():
+    """배포 지침 출력"""
+    instructions = """
+🚀 Phoenix 95 배포 지침:
+
+1. 개발 환경 설정:
+   python phoenix95_complete_fixed.py --test
+   python phoenix95_complete_fixed.py --simulation
+
+2. Docker 컨테이너 실행:
+   docker-compose up -d
+
+3. 프로덕션 배포:
+   cp .env.example .env
+   # .env 파일에서 실제 API 키 설정
+   docker-compose --profile production up -d
+
+4. 로그 모니터링:
+   docker-compose logs -f phoenix95
+
+5. 시스템 상태 확인:
+   curl http://localhost:8100/health
+
+6. 대시보드 접속:
+   http://localhost:8100
+
+⚠️ 주의사항:
+   • 프로덕션 환경에서는 반드시 실제 API 키 설정
+   • SSL 인증서 설정 권장
+   • 정기적인 백업 실행
+   • 시스템 리소스 모니터링 필수
+"""
+    print(instructions)
+
+# ================== 면책사항 완성 ==================
+def print_disclaimer():
+    """완전한 면책사항"""
+    disclaimer = """
+📚 추가 정보:
+   • 수정 사항: 오류 처리 개선, WebSocket 안정성 향상, 타입 안전성 강화
+   • CLI 인터페이스 추가, Docker 지원, 설정 관리 개선
+   • 문서: https://github.com/your-repo/phoenix95
+   • 지원: support@phoenix95.trading
+   • 라이선스: MIT
+
+⚠️  면책사항:
+   이 소프트웨어는 교육 및 연구 목적으로 제공됩니다.
+   실제 거래에서 발생하는 손실에 대해서는 사용자가 전적으로 책임집니다.
+   
+   • 자동 거래 시스템의 위험성을 충분히 이해하고 사용하세요
+   • 투자 손실 위험이 있으며, 원금 손실 가능성이 있습니다
+   • 시장 변동성으로 인한 예상치 못한 손실이 발생할 수 있습니다
+   • 기술적 오류나 시스템 장애로 인한 손실 가능성이 있습니다
+   • 법적 규제나 거래소 정책 변경으로 인한 영향을 받을 수 있습니다
+   
+   본 시스템 사용으로 인한 모든 결과에 대한 책임은 사용자에게 있습니다.
+
+🏛️ Phoenix 95 - Where AI Meets Institutional Trading
+
+💡 Quick Start:
+   python phoenix95_complete_fixed.py --test      # 테스트 실행
+   python phoenix95_complete_fixed.py --help      # 도움말 보기
+   python phoenix95_complete_fixed.py --setup     # 프로젝트 구조 설정
+"""
+    print(disclaimer)
+
+# ================== 메인 진입점 (최종) ==================
+if __name__ == "__main__":
+    # 특별 명령어 처리
+    if len(sys.argv) > 1:
+        if '--setup' in sys.argv:
+            print("🔧 Phoenix 95 프로젝트 구조 설정 중...")
+            setup_project_structure()
+            print_deployment_instructions()
+            sys.exit(0)
+        elif '--docker-files' in sys.argv:
+            print("🐳 Docker 설정 파일 생성 중...")
+            docker_files = generate_docker_files()
+            for filename, content in docker_files.items():
+                with open(filename, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                print(f"📄 생성됨: {filename}")
+            sys.exit(0)
+    
+    # 일반 실행
+    try:
+        # 시작 배너 출력
+        print_startup_banner()
+        
+        # CLI와 함께 실행
+        asyncio.run(main_with_cli())
+        
+    except KeyboardInterrupt:
+        print("\n👋 Phoenix 95 시스템을 종료합니다.")
+    except Exception as e:
+        print(f"\n💥 예상치 못한 오류: {e}")
+        logger.critical(f"메인 실행 오류: {e}")
+    finally:
+        # 면책사항 출력
+        print_disclaimer()

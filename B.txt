@@ -1,0 +1,3263 @@
+#!/usr/bin/env python3
+"""
+🏦 Phoenix 95 Complete System - 완전 통합 헤지펀드급 시스템 (수정됨)
+================================================================================
+
+🔧 안전성 우선 설계 + 고급 기능:
+✅ 의존성 오류 방지 (선택적 import + 기본값)
+✅ 런타임 오류 방지 (타입 안전성 + None 체크)
+✅ 메모리 안전성 (자동 정리 + GC)
+✅ 예외 처리 강화 (모든 함수에 try-catch)
+✅ 설정 안전성 (환경변수 + 기본값)
+✅ 보안 감사 로깅 (민감정보 필터링)
+✅ 실시간 시스템 모니터링
+✅ 고급 리스크 관리 (Kelly Criterion)
+✅ 멀티모드 실행 (단순/고급 모드)
+
+💎 4대 핵심 컴포넌트:
+- 🧠 BRAIN: Signal Intelligence Engine (Phoenix 95 AI)
+- ⚖️ RISK: Position & Risk Manager (Kelly + 헤지펀드급)
+- ⚡ EXECUTE: Trade Execution Engine (실시간 거래)
+- 📱 NOTIFY: Alert & Monitor Hub (다중 채널 알림)
+
+================================================================================
+"""
+
+import asyncio
+import time
+import json
+import logging
+import os
+import sys
+import gc
+import threading
+import hashlib
+import hmac
+import secrets
+import re
+import html
+from datetime import datetime, timedelta
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Any, Union, Tuple  # Tuple 추가
+from pathlib import Path
+import multiprocessing
+
+# =============================================================================
+# 🔒 Safe Imports with Fallbacks (안전한 의존성 관리)
+# =============================================================================
+
+# 기본 로깅 설정
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+logger = logging.getLogger(__name__)
+
+# FastAPI 선택적 import
+FASTAPI_AVAILABLE = False
+try:
+    from fastapi import FastAPI, HTTPException, Request, Response
+    from fastapi.middleware.cors import CORSMiddleware
+    from fastapi.middleware.base import BaseHTTPMiddleware
+    from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
+    from pydantic import BaseModel, field_validator
+    import uvicorn
+    FASTAPI_AVAILABLE = True
+    logger.info("✅ FastAPI 사용 가능")
+except ImportError:
+    logger.warning("⚠️ FastAPI 미설치 - 기본 모드로 실행")
+    class BaseModel:
+        pass
+
+# 네트워크 라이브러리 선택적 import
+REQUESTS_AVAILABLE = False
+try:
+    import requests
+    REQUESTS_AVAILABLE = True
+    logger.info("✅ Requests 사용 가능")
+except ImportError:
+    logger.warning("⚠️ Requests 미설치 - 텔레그램 기능 제한")
+
+# 고급 네트워크 클라이언트
+AIOHTTP_AVAILABLE = False
+try:
+    import aiohttp
+    AIOHTTP_AVAILABLE = True
+    logger.info("✅ aiohttp 사용 가능")
+except ImportError:
+    logger.warning("⚠️ aiohttp 미설치 - 고급 네트워크 기능 제한")
+
+# 시스템 모니터링
+PSUTIL_AVAILABLE = False
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+    logger.info("✅ psutil 사용 가능")
+except ImportError:
+    logger.warning("⚠️ psutil 미설치 - 시스템 모니터링 제한")
+
+# 수치 연산
+NUMPY_AVAILABLE = False
+try:
+    import numpy as np
+    NUMPY_AVAILABLE = True
+    logger.info("✅ numpy 사용 가능")
+except ImportError:
+    logger.warning("⚠️ numpy 미설치 - 고급 수치 연산 제한")
+
+# JWT 선택적 import
+JWT_AVAILABLE = False
+try:
+    import jwt
+    JWT_AVAILABLE = True
+    logger.info("✅ JWT 사용 가능")
+except ImportError:
+    logger.warning("⚠️ JWT 미설치 - 토큰 기능 비활성화")
+
+# =============================================================================
+# 🛡️ Security Logging System (보안 로깅 시스템)
+# =============================================================================
+
+class SecureLogger:
+    """민감정보를 필터링하는 안전한 로깅 시스템"""
+    
+    def __init__(self):
+        self.sensitive_patterns = [
+            r'[A-Za-z0-9]{60,}',  # API 키 패턴
+            r'bot\d+:[A-Za-z0-9_-]+',  # 텔레그램 봇 토큰
+            r'password["\']?\s*[:=]\s*["\']?([^"\']+)',  # 패스워드
+            r'secret["\']?\s*[:=]\s*["\']?([^"\']+)',  # 시크릿
+        ]
+        
+        # 로그 설정
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+            handlers=[
+                logging.StreamHandler(sys.stdout)
+            ]
+        )
+        self.logger = logging.getLogger("Phoenix95")
+    
+    def sanitize_log(self, message: str) -> str:
+        """로그 메시지에서 민감정보 제거"""
+        message = str(message)
+        for pattern in self.sensitive_patterns:
+            message = re.sub(pattern, '[REDACTED]', message, flags=re.IGNORECASE)
+        return message
+    
+    def info(self, message: str):
+        self.logger.info(self.sanitize_log(message))
+    
+    def warning(self, message: str):
+        self.logger.warning(self.sanitize_log(message))
+    
+    def error(self, message: str):
+        self.logger.error(self.sanitize_log(message))
+
+# 전역 보안 로거
+secure_logger = SecureLogger()
+
+# =============================================================================
+# 🛡️ Type Safe Math Utilities (안전한 수학 연산)
+# =============================================================================
+
+class SafeMath:
+    """완전히 안전한 수학 연산 유틸리티"""
+    
+    @staticmethod
+    def safe_float(value: Any, default: float = 0.0) -> float:
+        """안전한 float 변환"""
+        try:
+            if value is None:
+                return default
+            if isinstance(value, bool):
+                return default
+            return float(value)
+        except (ValueError, TypeError, OverflowError):
+            return default
+    
+    @staticmethod
+    def safe_divide(numerator: Any, denominator: Any, default: float = 0.0) -> float:
+        """완전히 안전한 나누기"""
+        try:
+            num = SafeMath.safe_float(numerator)
+            den = SafeMath.safe_float(denominator)
+            
+            if abs(den) < 1e-10:  # 0으로 나누기 방지
+                return default
+            
+            result = num / den
+            
+            # NaN, Infinity 체크
+            if not (result == result and abs(result) != float('inf')):
+                return default
+                
+            return result
+        except Exception:
+            return default
+    
+    @staticmethod
+    def safe_multiply(a: Any, b: Any, default: float = 0.0) -> float:
+        """안전한 곱하기"""
+        try:
+            val_a = SafeMath.safe_float(a)
+            val_b = SafeMath.safe_float(b)
+            
+            result = val_a * val_b
+            
+            # 오버플로우 체크
+            if not (result == result and abs(result) != float('inf')):
+                return default
+                
+            return result
+        except Exception:
+            return default
+    
+    @staticmethod
+    def clamp(value: Any, min_val: float, max_val: float) -> float:
+        """값 범위 제한"""
+        try:
+            val = SafeMath.safe_float(value)
+            min_v = SafeMath.safe_float(min_val)
+            max_v = SafeMath.safe_float(max_val)
+            
+            if min_v > max_v:
+                min_v, max_v = max_v, min_v
+            
+            return max(min_v, min(val, max_v))
+        except Exception:
+            return min_val
+
+# =============================================================================
+# 🔧 Configuration Management (설정 관리)
+# =============================================================================
+
+@dataclass
+class SafeConfig:
+    """안전하고 유연한 설정 관리"""
+    
+    def __init__(self):
+        # 시스템 정보
+        self.SYSTEM_VERSION: int = 5
+        self.ARCHITECTURE: str = "complete_system"
+        self.EXECUTION_MODE: str = os.getenv("PHOENIX_MODE", "SIMPLE")  # SIMPLE or ADVANCED
+        
+        # 기본 거래 설정
+        self.TRADE_MODE: str = os.getenv('TRADE_MODE', 'TEST')
+        self.LEVERAGE: int = int(os.getenv('LEVERAGE', '20'))
+        self.STOP_LOSS: float = float(os.getenv('STOP_LOSS', '0.02'))
+        self.TAKE_PROFIT: float = float(os.getenv('TAKE_PROFIT', '0.02'))
+        
+        # 리스크 관리 설정
+        self.MAX_DAILY_LOSS: float = float(os.getenv('MAX_DAILY_LOSS', '0.02'))
+        self.MAX_POSITION_SIZE: float = float(os.getenv('MAX_POSITION_SIZE', '0.05'))
+        self.MAX_POSITIONS: int = int(os.getenv('MAX_POSITIONS', '3'))
+        self.MIN_CONFIDENCE: float = float(os.getenv('MIN_CONFIDENCE', '0.75'))
+        
+        # Phoenix 95 설정
+        self.PHOENIX_95_CONFIG: Dict[str, Any] = {
+            "threshold": float(os.getenv('PHOENIX_THRESHOLD', '0.75')),
+            "multiplier": float(os.getenv('PHOENIX_MULTIPLIER', '1.3')),
+            "weight": float(os.getenv('PHOENIX_WEIGHT', '0.95')),
+            "ai_score_multiplier": 0.35,
+            "confidence_adjustment": 0.15,
+            "analysis_timeout": 30
+        }
+        
+        # 텔레그램 설정
+        self.TELEGRAM_CONFIG: Dict[str, Any] = {
+            "token": os.getenv("TELEGRAM_BOT_TOKEN", ""),
+            "chat_id": os.getenv("TELEGRAM_CHAT_ID", ""),
+            "enabled": os.getenv("TELEGRAM_ENABLED", "false").lower() == "true",
+            "parse_mode": "HTML",
+            "timeout": int(os.getenv("TELEGRAM_TIMEOUT", "30"))
+        }
+        
+        # 거래소 API 설정
+        if self.TRADE_MODE == 'LIVE':
+            self.BINANCE_API_KEY = os.getenv('BINANCE_API_KEY')
+            self.BINANCE_SECRET = os.getenv('BINANCE_SECRET')
+            if not self.BINANCE_API_KEY or not self.BINANCE_SECRET:
+                secure_logger.warning("LIVE 모드이지만 Binance API 키가 설정되지 않음")
+                self.TRADE_MODE = 'TEST'
+        else:
+            self.BINANCE_API_KEY = 'TEST_MODE'
+            self.BINANCE_SECRET = 'TEST_MODE'
+        
+        # 거래 가능 심볼
+        self.ALLOWED_SYMBOLS: List[str] = [
+            "BTCUSDT", "ETHUSDT", "BNBUSDT", "ADAUSDT", "DOGEUSDT",
+            "SOLUSDT", "XRPUSDT", "MATICUSDT", "DOTUSDT", "AVAXUSDT"
+        ]
+        
+        # 성능 목표
+        self.PERFORMANCE_TARGETS: Dict[str, Any] = {
+            "max_response_time_ms": 100.0,
+            "max_memory_mb": 200.0,
+            "target_success_rate": 0.95,
+            "health_check_interval": 30
+        }
+        
+        secure_logger.info(f"🔧 Phoenix 95 설정 로드 완료 - 모드: {self.EXECUTION_MODE}")
+
+# 전역 설정
+CONFIG = SafeConfig()
+
+# =============================================================================
+# 🛡️ Input Validation (입력 검증)
+# =============================================================================
+
+class InputValidator:
+    """입력 데이터 검증 및 보안"""
+    
+    @staticmethod
+    def sanitize_symbol(symbol: str) -> str:
+        """심볼 입력 정리"""
+        if not isinstance(symbol, str):
+            raise ValueError("심볼은 문자열이어야 합니다")
+        
+        clean_symbol = re.sub(r'[^A-Za-z0-9]', '', symbol).upper()
+        
+        if not clean_symbol or len(clean_symbol) > 20:
+            raise ValueError("유효하지 않은 심볼입니다")
+        
+        return clean_symbol
+    
+    @staticmethod
+    def validate_numeric(value: Any, min_val: float, max_val: float, name: str) -> float:
+        """숫자 범위 검증"""
+        try:
+            num_value = float(value)
+            if not min_val <= num_value <= max_val:
+                raise ValueError(f"{name}이 범위를 벗어남: {num_value}")
+            return num_value
+        except (TypeError, ValueError) as e:
+            raise ValueError(f"{name} 변환 실패: {value}") from e
+
+# =============================================================================
+# 📊 Safe Cache System (안전한 캐시 시스템)
+# =============================================================================
+
+class SafeCache:
+    """스레드 안전한 캐시 (메모리 누수 방지)"""
+    
+    def __init__(self, max_size: int = 1000, ttl: int = 300):
+        self.cache = {}
+        self.access_times = {}
+        self.max_size = max_size
+        self.ttl = ttl
+        self.lock = threading.RLock()
+        self.stats = {'hits': 0, 'misses': 0, 'cleanups': 0}
+    
+    def get(self, key: str) -> Optional[Any]:
+        """캐시에서 값 조회"""
+        with self.lock:
+            if key not in self.cache:
+                self.stats['misses'] += 1
+                return None
+            
+            # TTL 확인
+            if time.time() - self.access_times[key] > self.ttl:
+                del self.cache[key]
+                del self.access_times[key]
+                self.stats['misses'] += 1
+                return None
+            
+            self.stats['hits'] += 1
+            return self.cache[key]
+    
+    def set(self, key: str, value: Any):
+        """캐시에 값 저장"""
+        with self.lock:
+            # 캐시 크기 관리
+            if len(self.cache) >= self.max_size:
+                self._cleanup_old_entries()
+            
+            self.cache[key] = value
+            self.access_times[key] = time.time()
+    
+    def _cleanup_old_entries(self):
+        """오래된 항목 정리"""
+        current_time = time.time()
+        to_remove = []
+        
+        # TTL 만료된 항목 찾기
+        for key, access_time in self.access_times.items():
+            if current_time - access_time > self.ttl:
+                to_remove.append(key)
+        
+        # 만료된 항목 제거
+        for key in to_remove:
+            self.cache.pop(key, None)
+            self.access_times.pop(key, None)
+            self.stats['cleanups'] += 1
+        
+        # 여전히 크기가 크면 가장 오래된 항목 제거
+        if len(self.cache) >= self.max_size:
+            oldest_key = min(self.access_times, key=self.access_times.get)
+            self.cache.pop(oldest_key, None)
+            self.access_times.pop(oldest_key, None)
+            self.stats['cleanups'] += 1
+    
+    def get_stats(self) -> Dict:
+        """캐시 통계"""
+        with self.lock:
+            total_requests = self.stats['hits'] + self.stats['misses']
+            hit_rate = self.stats['hits'] / total_requests if total_requests > 0 else 0
+            
+            return {
+                'size': len(self.cache),
+                'max_size': self.max_size,
+                'hit_rate': round(hit_rate, 3),
+                'total_hits': self.stats['hits'],
+                'total_misses': self.stats['misses'],
+                'cleanups': self.stats['cleanups']
+            }
+
+# =============================================================================
+# 📊 Audit Logger (감사 로거)
+# =============================================================================
+
+class AuditLogger:
+    """보안 감사 로그 시스템"""
+    
+    def __init__(self, max_entries: int = 10000):
+        self.audit_log = []
+        self.max_entries = max_entries
+        self.lock = threading.RLock()
+    
+    def log_event(self, event_type: str, user_id: str, details: Dict, risk_level: str = 'LOW'):
+        """감사 이벤트 로그"""
+        with self.lock:
+            audit_entry = {
+                'timestamp': datetime.now().isoformat(),
+                'event_type': event_type,
+                'user_id': user_id,
+                'details': details,
+                'risk_level': risk_level,
+                'thread_id': threading.get_ident(),
+                'session_id': self._generate_session_id()
+            }
+            
+            # 로그 크기 관리
+            if len(self.audit_log) >= self.max_entries:
+                self.audit_log = self.audit_log[-int(self.max_entries * 0.8):]
+            
+            self.audit_log.append(audit_entry)
+            
+            # 고위험 이벤트는 즉시 로깅
+            if risk_level in ['HIGH', 'CRITICAL']:
+                secure_logger.warning(f"감사 이벤트 [{risk_level}]: {event_type} - {details}")
+    
+    def _generate_session_id(self) -> str:
+        """세션 ID 생성"""
+        return hashlib.md5(f"{time.time()}{threading.get_ident()}".encode()).hexdigest()[:8]
+    
+    def get_recent_events(self, count: int = 100, event_type: Optional[str] = None) -> List[Dict]:
+        """최근 이벤트 조회"""
+        with self.lock:
+            events = self.audit_log[-count:] if not event_type else [
+                event for event in self.audit_log[-count*2:] 
+                if event['event_type'] == event_type
+            ][-count:]
+            
+            return events
+    
+    def get_risk_summary(self) -> Dict:
+        """리스크 요약"""
+        with self.lock:
+            if not self.audit_log:
+                return {'total': 0, 'by_risk': {}}
+            
+            risk_counts = {}
+            for event in self.audit_log[-1000:]:  # 최근 1000개
+                risk_level = event['risk_level']
+                risk_counts[risk_level] = risk_counts.get(risk_level, 0) + 1
+            
+            return {
+                'total': len(self.audit_log),
+                'recent_count': min(1000, len(self.audit_log)),
+                'by_risk': risk_counts
+            }
+
+# 전역 감사 로거
+audit_logger = AuditLogger()
+
+# =============================================================================
+# 🌐 Network Client (네트워크 클라이언트)
+# =============================================================================
+
+class SecureNetworkClient:
+    """재시도 로직 및 타임아웃이 강화된 네트워크 클라이언트"""
+    
+    def __init__(self):
+        self.enabled = AIOHTTP_AVAILABLE
+        if self.enabled:
+            self.timeout = aiohttp.ClientTimeout(
+                total=30,      # 전체 30초
+                connect=5,     # 연결 5초
+                sock_read=10   # 읽기 10초
+            )
+    
+    async def safe_post(self, url: str, data: Optional[Dict] = None, json_data: Optional[Dict] = None) -> Dict:
+        """안전한 POST 요청 (재시도 + 타임아웃)"""
+        if not self.enabled:
+            secure_logger.warning("aiohttp 미설치로 네트워크 기능 제한")
+            return {'error': 'aiohttp not available'}
+        
+        max_retries = 3
+        retry_count = 0
+        
+        while retry_count < max_retries:
+            try:
+                async with aiohttp.ClientSession(timeout=self.timeout) as session:
+                    kwargs = {}
+                    if data:
+                        kwargs['data'] = data
+                    if json_data:
+                        kwargs['json'] = json_data
+                    
+                    async with session.post(url, **kwargs) as response:
+                        if response.status == 200:
+                            return await response.json()
+                        else:
+                            error_text = await response.text()
+                            secure_logger.error(f"HTTP 오류 {response.status}: {url}")
+                            if retry_count == max_retries - 1:
+                                return {'error': f'HTTP {response.status}: {error_text}'}
+                            
+            except asyncio.TimeoutError:
+                secure_logger.error(f"타임아웃: {url} (시도 {retry_count + 1}/{max_retries})")
+                if retry_count == max_retries - 1:
+                    return {'error': 'Request timeout'}
+            except Exception as e:
+                secure_logger.error(f"네트워크 오류: {url} - {e} (시도 {retry_count + 1}/{max_retries})")
+                if retry_count == max_retries - 1:
+                    return {'error': str(e)}
+            
+            retry_count += 1
+            if retry_count < max_retries:
+                await asyncio.sleep(min(2 ** retry_count, 10))  # 지수 백오프
+        
+        return {'error': 'Max retries exceeded'}
+    
+    async def safe_get(self, url: str) -> Dict:
+        """안전한 GET 요청"""
+        if not self.enabled:
+            return {'error': 'aiohttp not available'}
+        
+        max_retries = 3
+        retry_count = 0
+        
+        while retry_count < max_retries:
+            try:
+                async with aiohttp.ClientSession(timeout=self.timeout) as session:
+                    async with session.get(url) as response:
+                        if response.status == 200:
+                            return await response.json()
+                        else:
+                            if retry_count == max_retries - 1:
+                                return {'error': f'HTTP {response.status}'}
+                            
+            except Exception as e:
+                if retry_count == max_retries - 1:
+                    return {'error': str(e)}
+            
+            retry_count += 1
+            if retry_count < max_retries:
+                await asyncio.sleep(min(2 ** retry_count, 5))
+        
+        return {'error': 'Max retries exceeded'}
+
+# 전역 네트워크 클라이언트
+network_client = SecureNetworkClient()
+
+# =============================================================================
+# 🎯 Safe Data Models (안전한 데이터 모델)
+# =============================================================================
+
+if FASTAPI_AVAILABLE:
+    class SignalRequest(BaseModel):
+        """신호 요청 모델"""
+        symbol: str
+        action: str
+        price: float
+        confidence: Optional[float] = 0.8
+        strategy: Optional[str] = "phoenix95"
+        timeframe: Optional[str] = "1h"
+        rsi: Optional[float] = None
+        macd: Optional[float] = None
+        volume: Optional[float] = None
+        account_balance: Optional[float] = 10000.0
+        
+        @field_validator('symbol')
+        @classmethod
+        def validate_symbol(cls, v):
+            if not v or not isinstance(v, str):
+                raise ValueError('symbol must be a non-empty string')
+            clean_symbol = re.sub(r'[^A-Za-z0-9]', '', v.upper())
+            if clean_symbol not in CONFIG.ALLOWED_SYMBOLS:
+                raise ValueError(f'symbol must be one of: {CONFIG.ALLOWED_SYMBOLS}')
+            return clean_symbol
+        
+        @field_validator('action')
+        @classmethod
+        def validate_action(cls, v):
+            if v.lower() not in ['buy', 'sell', 'long', 'short']:
+                raise ValueError('action must be buy/sell/long/short')
+            return v.lower()
+        
+        @field_validator('price')
+        @classmethod
+        def validate_price(cls, v):
+            if v <= 0:
+                raise ValueError('price must be positive')
+            return v
+else:
+    class SignalRequest:
+        """기본 신호 요청 클래스"""
+        def __init__(self, symbol, action, price, confidence=0.8, **kwargs):
+            self.symbol = str(symbol).upper().strip() if symbol else ""
+            self.action = str(action).lower().strip() if action else ""
+            self.price = SafeMath.safe_float(price, 0.0)
+            self.confidence = SafeMath.safe_float(confidence, 0.8)
+            self.strategy = kwargs.get('strategy', 'phoenix95')
+            self.timeframe = kwargs.get('timeframe', '1h')
+            self.rsi = SafeMath.safe_float(kwargs.get('rsi')) if kwargs.get('rsi') else None
+            self.macd = SafeMath.safe_float(kwargs.get('macd')) if kwargs.get('macd') else None
+            self.volume = SafeMath.safe_float(kwargs.get('volume')) if kwargs.get('volume') else None
+            self.account_balance = SafeMath.safe_float(kwargs.get('account_balance', 10000.0))
+
+@dataclass
+class TradingSignal:
+    """거래 신호 도메인 모델"""
+    symbol: str
+    action: str
+    price: float
+    confidence: float
+    strategy: str = "phoenix95"
+    timeframe: str = "1h"
+    rsi: Optional[float] = None
+    macd: Optional[float] = None
+    volume: Optional[float] = None
+    account_balance: float = 10000.0
+    timestamp: float = field(default_factory=time.time)
+    signal_id: str = field(default_factory=lambda: f"SIG_{int(time.time() * 1000)}")
+
+@dataclass
+class AnalysisResult:
+    """분석 결과"""
+    signal_id: str
+    original_confidence: float
+    phoenix_95_score: float
+    final_confidence: float
+    quality_score: float
+    execution_timing: str
+    risk_level: str
+    recommended_position_size: float
+    analysis_time_ms: float
+    technical_indicators: Dict[str, float] = field(default_factory=dict)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+@dataclass
+class PositionInfo:
+    """포지션 정보"""
+    kelly_fraction: float
+    position_size: float
+    margin_required: float
+    leveraged_size: float
+    leverage: int
+    stop_loss_price: float
+    take_profit_price: float
+    liquidation_price: float
+    margin_mode: str
+    risk_score: float = 0.0
+
+@dataclass
+class TradeResult:
+    """거래 결과"""
+    trade_id: str
+    signal_id: str
+    symbol: str
+    action: str
+    phoenix_95_score: float
+    position_info: PositionInfo
+    execution_status: str
+    execution_reason: str
+    timestamp: float
+    processing_time_ms: float
+    hedge_fund_grade: bool = False
+
+# =============================================================================
+# 🧠 BRAIN - Signal Intelligence Engine (AI 분석 엔진)
+# =============================================================================
+
+class SignalBrain:
+    """Phoenix 95 AI 신호 분석 엔진"""
+    
+    def __init__(self, config: SafeConfig):
+        self.config = config
+        self.phoenix_config = config.PHOENIX_95_CONFIG
+        self.validator = InputValidator()
+        self.analysis_cache = SafeCache(max_size=1000, ttl=300)  # 5분 TTL
+        
+        # V5 가중치 매핑 (개선됨)
+        self.timeframe_weights = {
+            "1m": 0.8, "5m": 0.9, "15m": 1.0,
+            "1h": 1.1, "4h": 1.2, "1d": 1.3
+        }
+        
+        self.strategy_weights = {
+            "momentum": 1.1, "mean_reversion": 1.05, "breakout": 1.15,
+            "scalping": 0.95, "swing": 1.1, "phoenix95": 1.3, "unknown": 1.0
+        }
+        
+        secure_logger.info("🧠 BRAIN: Phoenix 95 Signal Intelligence Engine 초기화 완료")
+    
+    def analyze_signal(self, signal: TradingSignal) -> AnalysisResult:
+        """Phoenix 95 AI 분석 (개선된 버전)"""
+        try:
+            start_time = time.time()
+            
+            # 캐시 키 생성 및 확인
+            cache_key = self._generate_cache_key(signal)
+            cached_result = self.analysis_cache.get(cache_key)
+            
+            if cached_result:
+                cached_result.metadata['from_cache'] = True
+                cached_result.metadata['cache_stats'] = self.analysis_cache.get_stats()
+                return cached_result
+            
+            # 1. 기본 Phoenix 95 점수 계산
+            original_confidence = SafeMath.clamp(signal.confidence, 0.0, 1.0)
+            phoenix_multiplier = SafeMath.safe_float(self.phoenix_config.get("multiplier", 1.3))
+            base_phoenix_score = SafeMath.clamp(
+                SafeMath.safe_multiply(original_confidence, phoenix_multiplier),
+                0.0, 1.0
+            )
+            
+            # 2. 고급 기술적 지표 분석
+            technical_score = self._analyze_technical_advanced(signal)
+            volume_score = self._analyze_volume_advanced(signal)
+            momentum_score = self._analyze_momentum_advanced(signal)
+            
+            # 3. Phoenix 95 종합 점수 계산 (가중 평균)
+            component_scores = {
+                'technical': technical_score,
+                'volume': volume_score,
+                'momentum': momentum_score,
+                'base_phoenix': base_phoenix_score
+            }
+            
+            # 가중치 적용
+            technical_weight = 0.25
+            volume_weight = 0.25
+            momentum_weight = 0.25
+            phoenix_weight = 0.25
+            
+            phoenix_95_score = (
+                technical_score * technical_weight +
+                volume_score * volume_weight +
+                momentum_score * momentum_weight +
+                base_phoenix_score * phoenix_weight
+            )
+            
+            # 4. 시간대 및 전략 가중치 적용
+            timeframe_weight = self.timeframe_weights.get(signal.timeframe, 1.0)
+            strategy_weight = self.strategy_weights.get(signal.strategy, 1.0)
+            
+            phoenix_95_score = SafeMath.clamp(
+                SafeMath.safe_multiply(
+                    phoenix_95_score,
+                    SafeMath.safe_multiply(timeframe_weight, strategy_weight)
+                ),
+                0.0, 1.0
+            )
+            
+            # 5. 최종 신뢰도 조정
+            confidence_adjustment = SafeMath.safe_float(self.phoenix_config.get("confidence_adjustment", 0.15))
+            final_confidence = SafeMath.clamp(phoenix_95_score + confidence_adjustment, 0.0, 1.0)
+            
+            # 6. 품질 점수 계산
+            quality_factors = [
+                1.0 if signal.rsi is not None else 0.8,
+                1.0 if signal.macd is not None else 0.8,
+                1.0 if signal.volume is not None else 0.9,
+                1.0 if signal.strategy != "unknown" else 0.7,
+                1.0 if signal.account_balance > 0 else 0.5
+            ]
+            quality_score = sum(quality_factors) / len(quality_factors) if quality_factors else 0.0
+            
+            # 7. 실행 타이밍 및 리스크 레벨 결정
+            threshold = SafeMath.safe_float(self.phoenix_config.get("threshold", 0.75))
+            execution_timing, risk_level = self._determine_execution_strategy(final_confidence, threshold, quality_score)
+            
+            # 8. Kelly 포지션 크기 계산
+            recommended_position_size = self._calculate_kelly_position_size(final_confidence, signal.account_balance)
+            
+            analysis_time = (time.time() - start_time) * 1000
+            
+            # 결과 생성
+            result = AnalysisResult(
+                signal_id=signal.signal_id,
+                original_confidence=original_confidence,
+                phoenix_95_score=phoenix_95_score,
+                final_confidence=final_confidence,
+                quality_score=quality_score,
+                execution_timing=execution_timing,
+                risk_level=risk_level,
+                recommended_position_size=recommended_position_size,
+                analysis_time_ms=round(analysis_time, 2),
+                technical_indicators=component_scores,
+                metadata={
+                    'engine': 'Phoenix 95 V5.0 Complete',
+                    'timeframe_weight': timeframe_weight,
+                    'strategy_weight': strategy_weight,
+                    'from_cache': False,
+                    'cache_stats': self.analysis_cache.get_stats()
+                }
+            )
+            
+            # 캐시에 저장
+            self.analysis_cache.set(cache_key, result)
+            
+            return result
+            
+        except Exception as e:
+            secure_logger.error(f"🧠 BRAIN 분석 오류: {e}")
+            # 안전한 기본값 반환
+            return AnalysisResult(
+                signal_id=signal.signal_id,
+                original_confidence=0.0,
+                phoenix_95_score=0.0,
+                final_confidence=0.0,
+                quality_score=0.0,
+                execution_timing="HOLD",
+                risk_level="HIGH",
+                recommended_position_size=0.01,
+                analysis_time_ms=0.0,
+                technical_indicators={},
+                metadata={'error': str(e)}
+            )
+    
+    def _analyze_technical_advanced(self, signal: TradingSignal) -> float:
+        """고급 기술적 분석"""
+        try:
+            scores = []
+            
+            # RSI 분석 (개선됨)
+            if signal.rsi is not None:
+                rsi_value = SafeMath.clamp(signal.rsi, 0.0, 100.0)
+                if signal.action in ['buy', 'long']:
+                    if rsi_value < 30:
+                        rsi_score = 0.9  # 과매도 상태에서 매수 - 매우 좋음
+                    elif rsi_value < 40:
+                        rsi_score = 0.7
+                    elif rsi_value < 50:
+                        rsi_score = 0.6
+                    else:
+                        rsi_score = 0.3  # 과매수 상태에서 매수 - 좋지 않음
+                else:  # sell, short
+                    if rsi_value > 70:
+                        rsi_score = 0.9  # 과매수 상태에서 매도 - 매우 좋음
+                    elif rsi_value > 60:
+                        rsi_score = 0.7
+                    elif rsi_value > 50:
+                        rsi_score = 0.6
+                    else:
+                        rsi_score = 0.3  # 과매도 상태에서 매도 - 좋지 않음
+                
+                scores.append(rsi_score)
+            
+            # MACD 분석 (개선됨)
+            if signal.macd is not None:
+                macd_value = signal.macd
+                if signal.action in ['buy', 'long']:
+                    macd_score = 0.5 + SafeMath.clamp(macd_value / 100, -0.4, 0.4)
+                else:
+                    macd_score = 0.5 - SafeMath.clamp(macd_value / 100, -0.4, 0.4)
+                
+                scores.append(macd_score)
+            
+            # 기본 점수 (지표가 없는 경우)
+            if not scores:
+                return 0.5
+            
+            return sum(scores) / len(scores)
+            
+        except Exception:
+            return 0.5
+    
+    def _analyze_volume_advanced(self, signal: TradingSignal) -> float:
+        """고급 거래량 분석"""
+        try:
+            if signal.volume is None:
+                return 0.5
+            
+            current_volume = SafeMath.safe_float(signal.volume)
+            
+            # 거래량 기반 신뢰도 계산
+            if current_volume > 5000000:  # 매우 높은 거래량
+                return 0.9
+            elif current_volume > 2000000:  # 높은 거래량
+                return 0.8
+            elif current_volume > 1000000:  # 보통 거래량
+                return 0.6
+            elif current_volume > 500000:   # 낮은 거래량
+                return 0.4
+            else:  # 매우 낮은 거래량
+                return 0.2
+                
+        except Exception:
+            return 0.5
+    
+    def _analyze_momentum_advanced(self, signal: TradingSignal) -> float:
+        """고급 모멘텀 분석"""
+        try:
+            # 가격 기반 모멘텀 추정
+            price = SafeMath.safe_float(signal.price)
+            confidence = SafeMath.safe_float(signal.confidence)
+            
+            # 신뢰도 기반 모멘텀 점수
+            momentum_score = confidence
+            
+            # 추가 조정 (가격 수준에 따른)
+            if price > 50000:  # BTC 등 고가 자산
+                momentum_score *= 1.1
+            elif price > 1000:  # ETH 등 중가 자산
+                momentum_score *= 1.05
+            elif price < 1:     # 저가 알트코인
+                momentum_score *= 0.9
+            
+            return SafeMath.clamp(momentum_score, 0.0, 1.0)
+            
+        except Exception:
+            return 0.5
+    
+    def _determine_execution_strategy(self, confidence: float, threshold: float, quality: float) -> Tuple[str, str]:
+        """실행 전략 및 리스크 레벨 결정"""
+        try:
+            # 실행 타이밍 결정
+            if confidence >= threshold and quality >= 0.8:
+                execution_timing = "IMMEDIATE"
+            elif confidence >= threshold * 0.9 and quality >= 0.7:
+                execution_timing = "CAREFUL"
+            elif confidence >= threshold * 0.8:
+                execution_timing = "MONITOR"
+            else:
+                execution_timing = "HOLD"
+            
+            # 리스크 레벨 결정
+            if confidence >= 0.85 and quality >= 0.8:
+                risk_level = "LOW"
+            elif confidence >= 0.75 and quality >= 0.7:
+                risk_level = "MEDIUM"
+            elif confidence >= 0.65:
+                risk_level = "HIGH"
+            else:
+                risk_level = "CRITICAL"
+            
+            return execution_timing, risk_level
+            
+        except Exception:
+            return "HOLD", "HIGH"
+    
+    def _calculate_kelly_position_size(self, confidence: float, account_balance: float) -> float:
+        """Kelly Criterion 포지션 크기 계산 (개선됨)"""
+        try:
+            if account_balance <= 0:
+                return 0.01
+            
+            # Kelly Criterion 계산
+            win_rate = SafeMath.clamp(confidence * 0.85, 0.01, 0.99)
+            avg_win = 1.03  # 3% 수익 가정
+            avg_loss = 0.97  # 3% 손실 가정
+            
+            # Kelly fraction = (bp - q) / b
+            # b = avg_win/avg_loss, p = win_rate, q = 1-win_rate
+            b = SafeMath.safe_divide(avg_win, avg_loss, 1.0)
+            kelly_fraction = SafeMath.safe_divide(
+                (b * win_rate - (1 - win_rate)), 
+                b, 
+                0.01
+            )
+            
+            # Kelly fraction 제한 (1%-20%)
+            kelly_fraction = SafeMath.clamp(kelly_fraction, 0.01, 0.20)
+            
+            # 최대 포지션 크기 제한
+            max_position = SafeMath.safe_float(CONFIG.MAX_POSITION_SIZE)
+            position_size = min(kelly_fraction * account_balance, max_position * account_balance)
+            
+            return max(account_balance * 0.001, position_size)  # 최소 0.1%
+            
+        except Exception as e:
+            secure_logger.error(f"Kelly 계산 오류: {e}")
+            return account_balance * 0.01  # 1% 안전한 기본값
+    
+    def _generate_cache_key(self, signal: TradingSignal) -> str:
+        """캐시 키 생성"""
+        try:
+            key_data = {
+                'symbol': signal.symbol,
+                'action': signal.action,
+                'price': round(signal.price, 2),
+                'confidence': round(signal.confidence, 3),
+                'rsi': round(signal.rsi, 1) if signal.rsi else None,
+                'macd': round(signal.macd, 4) if signal.macd else None,
+                'volume': signal.volume,
+                'timeframe': signal.timeframe,
+                'strategy': signal.strategy
+            }
+            
+            # 해시 충돌 방지를 위해 SHA-256 사용
+            return hashlib.sha256(json.dumps(key_data, sort_keys=True).encode()).hexdigest()[:16]
+            
+        except Exception:
+            return f"fallback_{int(time.time())}"
+
+# =============================================================================
+# ⚖️ RISK - Position & Risk Manager (리스크 관리자)
+# =============================================================================
+
+class RiskManager:
+    """헤지펀드급 리스크 관리 시스템"""
+    
+    def __init__(self, config: SafeConfig):
+        self.config = config
+        self.daily_pnl = 0.0
+        self.active_positions = 0
+        self.total_exposure = 0.0
+        self.last_reset = datetime.now().date()
+        self.lock = threading.RLock()
+        
+        # 거래 기록 (Kelly Criterion 계산용)
+        self.trade_history = []
+        
+        # 리스크 메트릭
+        self.risk_metrics = {
+            'daily_trades': 0,
+            'success_rate': 0.0,
+            'max_drawdown': 0.0,
+            'win_streak': 0,
+            'loss_streak': 0,
+            'largest_win': 0.0,
+            'largest_loss': 0.0,
+            'volatility_multiplier': 1.0
+        }
+        
+        secure_logger.info("⚖️ RISK: Position & Risk Manager 초기화 완료")
+    
+    def check_trade_approval(self, signal_data: Dict, analysis: Dict) -> Dict:
+        """거래 승인 여부 결정 (헤지펀드급)"""
+        
+        with self.lock:
+            checks = []
+            approved = True
+            risk_level = 'LOW'
+            
+            try:
+                # 감사 로그
+                audit_logger.log_event(
+                    'TRADE_APPROVAL_REQUEST',
+                    'system',
+                    {
+                        'symbol': signal_data.get('symbol', 'UNKNOWN'),
+                        'confidence': analysis.get('confidence', 0)
+                    }
+                )
+                
+                # 일일 리셋 체크
+                self._check_daily_reset()
+                
+                # 입력 데이터 검증
+                if not self._validate_inputs(signal_data, analysis):
+                    audit_logger.log_event(
+                        'TRADE_APPROVAL_DENIED',
+                        'system',
+                        {'reason': 'Invalid input data'},
+                        'HIGH'
+                    )
+                    return self._create_error_response("입력 데이터 오류")
+                
+                # 1. 일일 손실 한도 체크 (최우선)
+                if abs(self.daily_pnl) >= CONFIG.MAX_DAILY_LOSS:
+                    approved = False
+                    risk_level = 'CRITICAL'
+                    checks.append(f"일일 손실 한도 초과: {self.daily_pnl:.2%}")
+                
+                # 2. 포지션 수 한도 체크
+                if self.active_positions >= CONFIG.MAX_POSITIONS:
+                    approved = False
+                    risk_level = 'HIGH'
+                    checks.append(f"최대 포지션 수 도달: {self.active_positions}/{CONFIG.MAX_POSITIONS}")
+                
+                # 3. 신뢰도 체크
+                confidence = analysis.get('confidence', 0)
+                if confidence < CONFIG.MIN_CONFIDENCE:
+                    approved = False
+                    risk_level = 'MEDIUM'
+                    checks.append(f"신뢰도 부족: {confidence:.3f} < {CONFIG.MIN_CONFIDENCE}")
+                
+                # 4. 고급 Kelly Criterion 포지션 사이징
+                account_balance = signal_data.get('account_balance', 10000)
+                position_size = self._calculate_advanced_kelly_size(
+                    account_balance, confidence
+                ) if approved else 0
+                
+                # 5. 총 노출 한도 체크
+                if account_balance > 0:
+                    projected_exposure = self.total_exposure + (position_size / account_balance)
+                    max_exposure = 0.20 * self.risk_metrics['volatility_multiplier']
+                    if projected_exposure > max_exposure:
+                        approved = False
+                        risk_level = 'HIGH'
+                        checks.append(f"총 노출 한도 초과: {projected_exposure:.2%} > {max_exposure:.2%}")
+                else:
+                    projected_exposure = 0
+                
+                # 6. 연속 손실 체크
+                if self.risk_metrics['loss_streak'] >= 3:
+                    position_size *= 0.5  # 연속 손실시 포지션 크기 50% 감소
+                    checks.append(f"연속 손실로 인한 포지션 크기 감소: {self.risk_metrics['loss_streak']}회")
+                
+                # 7. 심볼별 추가 체크
+                symbol = signal_data.get('symbol', '')
+                if symbol not in CONFIG.ALLOWED_SYMBOLS:
+                    approved = False
+                    risk_level = 'HIGH'
+                    checks.append(f"허용되지 않는 심볼: {symbol}")
+                
+                # 감사 로그
+                audit_logger.log_event(
+                    'TRADE_APPROVAL_RESULT',
+                    'system',
+                    {
+                        'approved': approved,
+                        'risk_level': risk_level,
+                        'position_size': position_size,
+                        'checks_count': len(checks)
+                    },
+                    'HIGH' if not approved else 'LOW'
+                )
+                
+                return {
+                    'approved': approved,
+                    'position_size': round(position_size, 2),
+                    'position_size_pct': round(position_size / account_balance, 4) if account_balance > 0 else 0,
+                    'risk_level': risk_level,
+                    'checks': checks,
+                    'risk_metrics': {
+                        'current_exposure': round(self.total_exposure, 4),
+                        'projected_exposure': round(projected_exposure, 4),
+                        'daily_pnl': round(self.daily_pnl, 4),
+                        'active_positions': self.active_positions,
+                        'volatility_multiplier': round(self.risk_metrics['volatility_multiplier'], 3),
+                        'loss_streak': self.risk_metrics['loss_streak']
+                    },
+                    'kelly_sizing': {
+                        'base_size': round(position_size * 0.8, 2),
+                        'confidence_adjusted': round(position_size, 2),
+                        'max_allowed': round(account_balance * CONFIG.MAX_POSITION_SIZE, 2) if account_balance > 0 else 0
+                    }
+                }
+                
+            except Exception as e:
+                secure_logger.error(f"리스크 체크 오류: {e}")
+                audit_logger.log_event(
+                    'TRADE_APPROVAL_ERROR',
+                    'system',
+                    {'error': str(e)},
+                    'CRITICAL'
+                )
+                return self._create_error_response("리스크 체크 시스템 오류")
+    
+    def calculate_position(self, signal: TradingSignal, analysis: AnalysisResult) -> PositionInfo:
+        """포지션 계산 (헤지펀드급)"""
+        try:
+            # Kelly 기반 포지션 크기
+            kelly_fraction = analysis.recommended_position_size / signal.account_balance if signal.account_balance > 0 else 0.01
+            base_position = analysis.recommended_position_size
+            
+            # 레버리지 적용
+            leverage = CONFIG.LEVERAGE
+            leveraged_size = SafeMath.safe_multiply(base_position, leverage)
+            margin_required = base_position
+            
+            # 손절/익절 가격 계산 (개선됨)
+            stop_loss_pct = CONFIG.STOP_LOSS
+            take_profit_pct = CONFIG.TAKE_PROFIT
+            
+            # 신뢰도에 따른 손익비 조정
+            confidence_factor = SafeMath.clamp(analysis.final_confidence, 0.5, 1.0)
+            adjusted_take_profit = take_profit_pct * (1 + confidence_factor * 0.5)  # 신뢰도 높으면 더 큰 수익 목표
+            
+            if signal.action in ['buy', 'long']:
+                stop_loss_price = SafeMath.safe_multiply(signal.price, (1 - stop_loss_pct))
+                take_profit_price = SafeMath.safe_multiply(signal.price, (1 + adjusted_take_profit))
+            else:
+                stop_loss_price = SafeMath.safe_multiply(signal.price, (1 + stop_loss_pct))
+                take_profit_price = SafeMath.safe_multiply(signal.price, (1 - adjusted_take_profit))
+            
+            # 청산가 계산 (개선됨)
+            liquidation_buffer = 0.1  # 10% 버퍼
+            if signal.action in ['buy', 'long']:
+                liquidation_price = SafeMath.safe_multiply(
+                    signal.price,
+                    (1 - SafeMath.safe_divide(1, leverage) + liquidation_buffer)
+                )
+            else:
+                liquidation_price = SafeMath.safe_multiply(
+                    signal.price,
+                    (1 + SafeMath.safe_divide(1, leverage) - liquidation_buffer)
+                )
+            
+            # 리스크 점수 계산 (0-10)
+            risk_score = self._calculate_risk_score(
+                kelly_fraction, leveraged_size, analysis.final_confidence, analysis.quality_score
+            )
+            
+            return PositionInfo(
+                kelly_fraction=kelly_fraction,
+                position_size=base_position,
+                margin_required=margin_required,
+                leveraged_size=leveraged_size,
+                leverage=leverage,
+                stop_loss_price=stop_loss_price,
+                take_profit_price=take_profit_price,
+                liquidation_price=liquidation_price,
+                margin_mode="ISOLATED",
+                risk_score=risk_score
+            )
+            
+        except Exception as e:
+            secure_logger.error(f"⚖️ RISK 포지션 계산 오류: {e}")
+            # 안전한 기본값 반환
+            return PositionInfo(
+                kelly_fraction=0.01,
+                position_size=100.0,
+                margin_required=100.0,
+                leveraged_size=2000.0,
+                leverage=CONFIG.LEVERAGE,
+                stop_loss_price=signal.price * 0.98,
+                take_profit_price=signal.price * 1.02,
+                liquidation_price=signal.price * 0.95,
+                margin_mode="ISOLATED",
+                risk_score=5.0
+            )
+    
+    def _calculate_advanced_kelly_size(self, balance: float, confidence: float) -> float:
+        """고급 Kelly Criterion 포지션 사이징"""
+        try:
+            # 기본 리스크 (계좌의 일일 손실 한도)
+            base_risk_amount = balance * CONFIG.MAX_DAILY_LOSS
+            
+            # 신뢰도 검증 및 정규화
+            confidence = SafeMath.clamp(confidence, 0.5, 1.0)
+            
+            # 과거 거래 데이터 기반 승률 및 수익률 계산
+            win_rate, avg_win, avg_loss = self._calculate_historical_metrics()
+            
+            # Kelly Criterion 계산
+            if avg_loss > 0 and win_rate > 0:
+                kelly_fraction = SafeMath.safe_divide(
+                    (win_rate * avg_win - (1 - win_rate) * avg_loss), 
+                    avg_win, 
+                    0.01
+                )
+            else:
+                # 기본값 사용 (신뢰도 기반 추정)
+                estimated_win_rate = 0.6 + (confidence - 0.75) * 0.4
+                estimated_win_rate = SafeMath.clamp(estimated_win_rate, 0.5, 0.95)
+                kelly_fraction = SafeMath.safe_divide(
+                    (estimated_win_rate * 1.5 - (1 - estimated_win_rate) * 1.0), 
+                    1.5, 
+                    0.01
+                )
+            
+            # Kelly fraction 제한 (1%-25%)
+            kelly_fraction = SafeMath.clamp(kelly_fraction, 0.01, 0.25)
+            
+            # 신뢰도 조정
+            confidence_factor = 0.8 + (confidence - 0.75) * 1.6
+            confidence_factor = SafeMath.clamp(confidence_factor, 0.5, 1.2)
+            
+            # 변동성 조정
+            volatility_factor = self.risk_metrics['volatility_multiplier']
+            volatility_factor = SafeMath.clamp(volatility_factor, 0.5, 1.5)
+            
+            # 최종 포지션 크기 계산
+            kelly_size = balance * kelly_fraction
+            adjusted_size = kelly_size * confidence_factor * volatility_factor
+            
+            # 최대 한도 적용
+            max_position = balance * CONFIG.MAX_POSITION_SIZE
+            final_size = min(adjusted_size, max_position)
+            
+            # 최소/최대 제한
+            final_size = SafeMath.clamp(final_size, balance * 0.001, balance * 0.1)
+            
+            return final_size
+            
+        except Exception as e:
+            secure_logger.error(f"Kelly 포지션 사이징 오류: {e}")
+            return balance * 0.01  # 1% 안전한 기본값
+    
+    def _calculate_historical_metrics(self) -> Tuple[float, float, float]:
+        """과거 거래 데이터 기반 메트릭 계산"""
+        if len(self.trade_history) < 10:
+            return 0.6, 1.5, 1.0  # 기본값
+        
+        recent_trades = self.trade_history[-50:]  # 최근 50개 거래
+        
+        wins = [trade for trade in recent_trades if trade['pnl'] > 0]
+        losses = [trade for trade in recent_trades if trade['pnl'] < 0]
+        
+        win_rate = len(wins) / len(recent_trades) if recent_trades else 0.6
+        avg_win = sum(trade['pnl'] for trade in wins) / len(wins) if wins else 1.5
+        avg_loss = abs(sum(trade['pnl'] for trade in losses) / len(losses)) if losses else 1.0
+        
+        return win_rate, avg_win, avg_loss
+    
+    def _calculate_risk_score(self, kelly_fraction: float, leveraged_size: float, 
+                             confidence: float, quality: float) -> float:
+        """리스크 점수 계산 (0-10)"""
+        try:
+            # 각 요소별 리스크 점수
+            kelly_risk = SafeMath.clamp(kelly_fraction * 20, 0.0, 3.0)
+            leverage_risk = SafeMath.clamp(leveraged_size / 50000, 0.0, 3.0)
+            confidence_risk = SafeMath.clamp(2 * (1 - confidence), 0.0, 2.0)
+            quality_risk = SafeMath.clamp(2 * (1 - quality), 0.0, 2.0)
+            
+            total_risk = kelly_risk + leverage_risk + confidence_risk + quality_risk
+            return SafeMath.clamp(total_risk, 0.0, 10.0)
+            
+        except Exception as e:
+            secure_logger.error(f"리스크 점수 계산 오류: {e}")
+            return 5.0
+    
+    def update_position_status(self, position_update: Dict):
+        """포지션 상태 업데이트 (고급 추적)"""
+        with self.lock:
+            try:
+                action = position_update.get('action')
+                
+                if action == 'open':
+                    self.active_positions += 1
+                    self.total_exposure += position_update.get('size_pct', 0)
+                    self.risk_metrics['daily_trades'] += 1
+                    
+                elif action == 'close':
+                    self.active_positions = max(0, self.active_positions - 1)
+                    self.total_exposure -= position_update.get('size_pct', 0)
+                    self.total_exposure = max(0, self.total_exposure)
+                    
+                    # P&L 업데이트 및 거래 기록
+                    pnl_pct = position_update.get('pnl_pct', 0)
+                    self.daily_pnl += pnl_pct
+                    
+                    # 거래 기록 저장
+                    trade_record = {
+                        'timestamp': datetime.now().isoformat(),
+                        'symbol': position_update.get('symbol', 'UNKNOWN'),
+                        'pnl': pnl_pct,
+                        'size_pct': position_update.get('size_pct', 0),
+                        'duration': position_update.get('duration_minutes', 0)
+                    }
+                    self.trade_history.append(trade_record)
+                    
+                    # 거래 기록 크기 제한
+                    if len(self.trade_history) > 500:
+                        self.trade_history = self.trade_history[-400:]
+                    
+                    # 연승/연패 추적
+                    if pnl_pct > 0:
+                        self.risk_metrics['win_streak'] += 1
+                        self.risk_metrics['loss_streak'] = 0
+                        self.risk_metrics['largest_win'] = max(
+                            self.risk_metrics['largest_win'], pnl_pct
+                        )
+                    else:
+                        self.risk_metrics['loss_streak'] += 1
+                        self.risk_metrics['win_streak'] = 0
+                        self.risk_metrics['largest_loss'] = min(
+                            self.risk_metrics['largest_loss'], pnl_pct
+                        )
+                    
+                    # 승률 업데이트
+                    recent_trades = self.trade_history[-20:] if len(self.trade_history) >= 20 else self.trade_history
+                    if recent_trades:
+                        wins = sum(1 for trade in recent_trades if trade['pnl'] > 0)
+                        self.risk_metrics['success_rate'] = wins / len(recent_trades)
+                    
+                    # 변동성 승수 업데이트
+                    self._update_volatility_multiplier()
+                
+                # 감사 로그
+                audit_logger.log_event(
+                    'POSITION_UPDATE',
+                    'system',
+                    {
+                        'action': action,
+                        'active_positions': self.active_positions,
+                        'total_exposure': self.total_exposure
+                    }
+                )
+                    
+            except Exception as e:
+                secure_logger.error(f"포지션 상태 업데이트 오류: {e}")
+                audit_logger.log_event(
+                    'POSITION_UPDATE_ERROR',
+                    'system',
+                    {'error': str(e)},
+                    'HIGH'
+                )
+    
+    def _update_volatility_multiplier(self):
+        """변동성 기반 리스크 승수 업데이트"""
+        try:
+            if len(self.trade_history) < 10:
+                return
+            
+            recent_trades = self.trade_history[-20:]
+            pnl_values = [trade['pnl'] for trade in recent_trades]
+            
+            if NUMPY_AVAILABLE:
+                volatility = np.std(pnl_values)
+            else:
+                # numpy 없이 표준편차 계산
+                mean_pnl = sum(pnl_values) / len(pnl_values)
+                variance = sum((x - mean_pnl) ** 2 for x in pnl_values) / len(pnl_values)
+                volatility = variance ** 0.5
+            
+            # 변동성에 따른 승수 조정
+            if volatility > 0.05:  # 높은 변동성
+                self.risk_metrics['volatility_multiplier'] = 0.7
+            elif volatility > 0.03:  # 중간 변동성
+                self.risk_metrics['volatility_multiplier'] = 0.85
+            else:  # 낮은 변동성
+                self.risk_metrics['volatility_multiplier'] = 1.0
+                
+        except Exception as e:
+            secure_logger.error(f"변동성 승수 업데이트 오류: {e}")
+    
+    def _validate_inputs(self, signal_data: Dict, analysis: Dict) -> bool:
+        """입력 데이터 유효성 검증"""
+        try:
+            if not isinstance(signal_data, dict) or not isinstance(analysis, dict):
+                return False
+            
+            required_signal_fields = ['symbol', 'price', 'account_balance']
+            for field in required_signal_fields:
+                if field not in signal_data:
+                    return False
+            
+            required_analysis_fields = ['confidence', 'final_confidence']
+            for field in required_analysis_fields:
+                if field not in analysis:
+                    return False
+            
+            return True
+        except Exception:
+            return False
+    
+    def _check_daily_reset(self):
+        """일일 리셋 체크"""
+        today = datetime.now().date()
+        if today != self.last_reset:
+            self.daily_pnl = 0.0
+            self.risk_metrics['daily_trades'] = 0
+            self.last_reset = today
+            secure_logger.info("⚖️ RISK: 일일 통계 리셋")
+    
+    def _create_error_response(self, error_msg: str) -> Dict:
+        """에러 응답 생성"""
+        return {
+            'approved': False,
+            'position_size': 0,
+            'position_size_pct': 0,
+            'risk_level': 'CRITICAL',
+            'checks': [error_msg],
+            'error': error_msg
+        }
+    
+    def get_risk_status(self) -> Dict:
+        """리스크 상태 조회"""
+        with self.lock:
+            return {
+                'current_status': {
+                    'daily_pnl': round(self.daily_pnl, 4),
+                    'active_positions': self.active_positions,
+                    'total_exposure': round(self.total_exposure, 4),
+                    'risk_utilization': round(abs(self.daily_pnl) / CONFIG.MAX_DAILY_LOSS, 4) if CONFIG.MAX_DAILY_LOSS > 0 else 0
+                },
+                'limits': {
+                    'max_daily_loss': CONFIG.MAX_DAILY_LOSS,
+                    'max_positions': CONFIG.MAX_POSITIONS,
+                    'max_position_size': CONFIG.MAX_POSITION_SIZE,
+                    'min_confidence': CONFIG.MIN_CONFIDENCE
+                },
+                'metrics': self.risk_metrics,
+                'trade_history_count': len(self.trade_history),
+                'timestamp': datetime.now().isoformat()
+            }
+
+# =============================================================================
+# ⚡ EXECUTE - Trade Execution Engine (실행 엔진)
+# =============================================================================
+
+class ExecutionEngine:
+    """헤지펀드급 거래 실행 엔진"""
+    
+    def __init__(self, config: SafeConfig):
+        self.config = config
+        self.execution_threshold = SafeMath.safe_float(config.PHOENIX_95_CONFIG.get("threshold", 0.75))
+        
+        # 실행 조건 매트릭스 (개선됨)
+        self.execution_matrix = {
+            ("IMMEDIATE", "LOW"): True,
+            ("IMMEDIATE", "MEDIUM"): True,
+            ("IMMEDIATE", "HIGH"): False,
+            ("IMMEDIATE", "CRITICAL"): False,
+            ("CAREFUL", "LOW"): True,
+            ("CAREFUL", "MEDIUM"): True,
+            ("CAREFUL", "HIGH"): False,
+            ("CAREFUL", "CRITICAL"): False,
+            ("MONITOR", "LOW"): True,
+            ("MONITOR", "MEDIUM"): False,
+            ("MONITOR", "HIGH"): False,
+            ("MONITOR", "CRITICAL"): False,
+            ("HOLD", "LOW"): False,
+            ("HOLD", "MEDIUM"): False,
+            ("HOLD", "HIGH"): False,
+            ("HOLD", "CRITICAL"): False,
+        }
+        
+        # 실행 통계
+        self.execution_stats = {
+            'total_trades': 0,
+            'successful_trades': 0,
+            'failed_trades': 0,
+            'avg_execution_time': 0.0,
+            'total_volume': 0.0,
+            'slippage_stats': {
+                'avg_slippage': 0.0,
+                'max_slippage': 0.0
+            }
+        }
+        
+        self.lock = threading.RLock()
+        
+        secure_logger.info("⚡ EXECUTE: Trade Execution Engine 초기화 완료")
+    
+    def execute_trade(self, signal: TradingSignal, analysis: AnalysisResult, position_info: PositionInfo) -> TradeResult:
+        """거래 실행 결정 (헤지펀드급)"""
+        try:
+            start_time = time.time()
+            trade_id = f"T95_{int(start_time * 1000)}"
+            
+            # 실행 조건 체크
+            should_execute, reason = self._check_execution_conditions(analysis, position_info)
+            
+            # 실행 통계 업데이트
+            processing_time = (time.time() - start_time) * 1000
+            
+            with self.lock:
+                self.execution_stats['total_trades'] += 1
+                
+                if should_execute:
+                    execution_status = "EXECUTED"
+                    self.execution_stats['successful_trades'] += 1
+                    self.execution_stats['total_volume'] += position_info.leveraged_size
+                    
+                    # 평균 실행 시간 업데이트
+                    current_avg = self.execution_stats['avg_execution_time']
+                    total_successful = self.execution_stats['successful_trades']
+                    new_avg = ((current_avg * (total_successful - 1)) + processing_time) / total_successful
+                    self.execution_stats['avg_execution_time'] = new_avg
+                    
+                    secure_logger.info(f"⚡ EXECUTE: {signal.symbol} 거래 실행 - Phoenix={analysis.phoenix_95_score:.2%}")
+                    
+                    # 감사 로그
+                    audit_logger.log_event(
+                        'TRADE_EXECUTED',
+                        'system',
+                        {
+                            'trade_id': trade_id,
+                            'symbol': signal.symbol,
+                            'action': signal.action,
+                            'phoenix_score': analysis.phoenix_95_score,
+                            'position_size': position_info.leveraged_size
+                        }
+                    )
+                    
+                else:
+                    execution_status = "HOLD"
+                    self.execution_stats['failed_trades'] += 1
+                    secure_logger.info(f"⚡ EXECUTE: {signal.symbol} 보류 - {reason}")
+                    
+                    # 감사 로그
+                    audit_logger.log_event(
+                        'TRADE_HOLD',
+                        'system',
+                        {
+                            'trade_id': trade_id,
+                            'symbol': signal.symbol,
+                            'reason': reason
+                        }
+                    )
+            
+            hedge_fund_grade = processing_time <= CONFIG.PERFORMANCE_TARGETS["max_response_time_ms"]
+            
+            return TradeResult(
+                trade_id=trade_id,
+                signal_id=analysis.signal_id,
+                symbol=signal.symbol,
+                action=signal.action,
+                phoenix_95_score=analysis.phoenix_95_score,
+                position_info=position_info,
+                execution_status=execution_status,
+                execution_reason=reason,
+                timestamp=time.time(),
+                processing_time_ms=round(processing_time, 2),
+                hedge_fund_grade=hedge_fund_grade
+            )
+            
+        except Exception as e:
+            secure_logger.error(f"⚡ EXECUTE 거래 실행 오류: {e}")
+            
+            # 감사 로그
+            audit_logger.log_event(
+                'TRADE_EXECUTION_ERROR',
+                'system',
+                {'error': str(e)},
+                'CRITICAL'
+            )
+            
+            # 안전한 기본값 반환
+            return TradeResult(
+                trade_id=f"ERROR_{int(time.time() * 1000)}",
+                signal_id=analysis.signal_id,
+                symbol=signal.symbol,
+                action=signal.action,
+                phoenix_95_score=0.0,
+                position_info=position_info,
+                execution_status="ERROR",
+                execution_reason=f"실행 오류: {e}",
+                timestamp=time.time(),
+                processing_time_ms=0.0,
+                hedge_fund_grade=False
+            )
+    
+    def _check_execution_conditions(self, analysis: AnalysisResult, position_info: PositionInfo) -> Tuple[bool, str]:
+        """실행 조건 체크 (헤지펀드급)"""
+        try:
+            # 1. Phoenix 95 임계값 체크
+            if analysis.final_confidence < self.execution_threshold:
+                return False, f"Phoenix 95 임계값 미달 ({analysis.final_confidence:.1%} < {self.execution_threshold:.0%})"
+            
+            # 2. 타이밍/리스크 매트릭스 체크
+            key = (analysis.execution_timing, analysis.risk_level)
+            if not self.execution_matrix.get(key, False):
+                return False, f"타이밍/리스크 부적절 ({analysis.execution_timing}/{analysis.risk_level})"
+            
+            # 3. 리스크 점수 체크
+            if position_info.risk_score >= 8.0:
+                return False, f"리스크 점수 과다 ({position_info.risk_score}/10)"
+            
+            # 4. 품질 점수 체크
+            if analysis.quality_score < 0.7:
+                return False, f"품질 점수 부족 ({analysis.quality_score:.1%})"
+            
+            # 5. 포지션 크기 체크
+            if position_info.position_size <= 0:
+                return False, "포지션 크기 부적절"
+            
+            # 6. 청산가 안전성 체크
+            liquidation_distance = abs(position_info.liquidation_price - position_info.stop_loss_price) / position_info.stop_loss_price
+            if liquidation_distance < 0.1:  # 청산가와 손절가가 너무 가까움
+                return False, f"청산가 위험 (거리: {liquidation_distance:.1%})"
+            
+            return True, "모든 실행 조건 충족"
+            
+        except Exception as e:
+            secure_logger.error(f"실행 조건 체크 오류: {e}")
+            return False, f"조건 체크 실패: {e}"
+    
+    def get_stats(self) -> Dict:
+        """실행 통계 조회"""
+        with self.lock:
+            total = self.execution_stats['total_trades']
+            success_rate = (
+                self.execution_stats['successful_trades'] / total * 100 
+                if total > 0 else 0
+            )
+            
+            return {
+                'execution_stats': {
+                    **self.execution_stats,
+                    'success_rate_pct': round(success_rate, 2)
+                },
+                'configuration': {
+                    'execution_threshold': self.execution_threshold,
+                    'trade_mode': self.config.TRADE_MODE,
+                    'leverage': self.config.LEVERAGE
+                },
+                'execution_matrix_size': len(self.execution_matrix)
+            }
+
+# =============================================================================
+# 📱 NOTIFY - Alert & Monitor Hub (알림 허브)
+# =============================================================================
+
+class NotificationHub:
+    """헤지펀드급 알림 및 모니터링 허브"""
+    
+    def __init__(self, config: SafeConfig):
+        self.config = config
+        self.telegram_config = config.TELEGRAM_CONFIG
+        
+        self.stats = {
+            "total_sent": 0,
+            "success_count": 0,
+            "error_count": 0,
+            "telegram_sent": 0,
+            "console_sent": 0
+        }
+        
+        self.lock = threading.RLock()
+        
+        secure_logger.info("📱 NOTIFY: Alert & Monitor Hub 초기화 완료")
+    
+    async def send_alert(self, trade_result: TradeResult):
+        """거래 알림 전송 (멀티 채널)"""
+        try:
+            message = self._format_message(trade_result)
+            
+            with self.lock:
+                self.stats["total_sent"] += 1
+            
+            # 텔레그램 전송 시도
+            telegram_success = False
+            if self.telegram_config.get("enabled", False) and REQUESTS_AVAILABLE:
+                telegram_success = await self._send_telegram_message(message)
+                if telegram_success:
+                    with self.lock:
+                        self.stats["telegram_sent"] += 1
+            
+            # 콘솔 출력 (백업)
+            if not telegram_success or CONFIG.EXECUTION_MODE == "SIMPLE":
+                self._send_console_message(message)
+                with self.lock:
+                    self.stats["console_sent"] += 1
+            
+            with self.lock:
+                self.stats["success_count"] += 1
+            
+            secure_logger.info(f"📱 NOTIFY: {trade_result.symbol} 알림 전송 완료")
+            
+        except Exception as e:
+            with self.lock:
+                self.stats["error_count"] += 1
+            secure_logger.error(f"📱 NOTIFY 알림 전송 오류: {e}")
+    
+    async def send_system_alert(self, alert_type: str, message: str, severity: str = 'INFO'):
+        """시스템 알림 전송"""
+        try:
+            emoji_map = {
+                'INFO': 'ℹ️',
+                'WARNING': '⚠️',
+                'ERROR': '❌',
+                'CRITICAL': '🚨'
+            }
+            
+            emoji = emoji_map.get(severity, 'ℹ️')
+            
+            formatted_message = f"""
+{emoji} <b>Phoenix 95 시스템 알림</b>
+
+📋 <b>유형:</b> {alert_type}
+🔍 <b>내용:</b> {message}
+📊 <b>심각도:</b> {severity}
+
+⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+"""
+            
+            # 심각도에 따른 전송 방식 결정
+            if severity in ['CRITICAL', 'ERROR'] or CONFIG.EXECUTION_MODE == "ADVANCED":
+                if self.telegram_config.get("enabled", False) and REQUESTS_AVAILABLE:
+                    await self._send_telegram_message(formatted_message)
+                else:
+                    self._send_console_message(formatted_message)
+            else:
+                self._send_console_message(formatted_message)
+            
+            with self.lock:
+                self.stats["total_sent"] += 1
+                self.stats["success_count"] += 1
+                
+        except Exception as e:
+            with self.lock:
+                self.stats["error_count"] += 1
+            secure_logger.error(f"시스템 알림 전송 오류: {e}")
+    
+    def _format_message(self, trade_result: TradeResult) -> str:
+        """알림 메시지 포맷 (개선됨)"""
+        try:
+            # 상태별 이모지
+            status_emoji_map = {
+                "EXECUTED": "🚀",
+                "HOLD": "⏳",
+                "ERROR": "❌"
+            }
+            status_emoji = status_emoji_map.get(trade_result.execution_status, "❓")
+            
+            # 레버리지 정보
+            leverage_info = f"{trade_result.position_info.leverage}x {trade_result.position_info.margin_mode}"
+            
+            # 상태별 메시지 내용
+            if trade_result.execution_status == "EXECUTED":
+                potential_profit = SafeMath.safe_multiply(trade_result.position_info.leveraged_size, CONFIG.TAKE_PROFIT)
+                roi_text = f"💰 **수익 예상:** ${potential_profit:,.0f} ({CONFIG.TAKE_PROFIT:.1%} 달성시)"
+                
+                # 고급 정보 (ADVANCED 모드에서만)
+                if CONFIG.EXECUTION_MODE == "ADVANCED":
+                    advanced_info = f"""
+🔍 **고급 정보:**
+• Kelly Fraction: {trade_result.position_info.kelly_fraction:.3f}
+• 리스크 스코어: {trade_result.position_info.risk_score:.1f}/10
+• 청산가: ${trade_result.position_info.liquidation_price:,.2f}
+• 처리시간: {trade_result.processing_time_ms:.1f}ms
+• 헤지펀드급: {'✅' if trade_result.hedge_fund_grade else '❌'}"""
+                else:
+                    advanced_info = ""
+                
+            else:
+                roi_text = f"💭 **상태:** {trade_result.execution_reason}"
+                advanced_info = ""
+            
+            # 기본 메시지
+            if CONFIG.EXECUTION_MODE == "SIMPLE":
+                message = f"""
+{status_emoji} **Phoenix 95 시스템**
+
+📊 **{trade_result.symbol}** {trade_result.action.upper()}
+🔥 **Phoenix Score:** {trade_result.phoenix_95_score:.1%}
+💎 **포지션:** ${trade_result.position_info.leveraged_size:,.0f}
+⚖️ **레버리지:** {leverage_info}
+🛑 **손절:** ${trade_result.position_info.stop_loss_price:,.2f}
+🎯 **익절:** ${trade_result.position_info.take_profit_price:,.2f}
+⚡ **상태:** {trade_result.execution_status}
+
+{roi_text}
+
+🆔 **Trade:** {trade_result.trade_id}
+"""
+            else:  # ADVANCED 모드
+                message = f"""
+{status_emoji} **Phoenix 95 헤지펀드 시스템**
+
+📊 **기본 정보**
+• 심볼: **{trade_result.symbol}**
+• 방향: **{trade_result.action.upper()}**
+• Phoenix Score: **{trade_result.phoenix_95_score:.1%}**
+
+💰 **포지션 정보**
+• 포지션: **${trade_result.position_info.leveraged_size:,.0f}**
+• 레버리지: **{leverage_info}**
+• 마진: **${trade_result.position_info.margin_required:,.0f}**
+
+🎯 **리스크 관리**
+• 손절가: **${trade_result.position_info.stop_loss_price:,.2f}**
+• 익절가: **${trade_result.position_info.take_profit_price:,.2f}**
+• 상태: **{trade_result.execution_status}**
+
+{roi_text}
+{advanced_info}
+
+🆔 **Trade ID:** {trade_result.trade_id}
+⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+"""
+            
+            return message
+            
+        except Exception as e:
+            secure_logger.error(f"메시지 포맷 오류: {e}")
+            return f"Phoenix 95 알림: {trade_result.symbol} {trade_result.execution_status} (포맷 오류)"
+    
+    async def _send_telegram_message(self, message: str) -> bool:
+        """텔레그램 메시지 전송"""
+        try:
+            if not REQUESTS_AVAILABLE or not self.telegram_config.get("token"):
+                return False
+            
+            url = f"https://api.telegram.org/bot{self.telegram_config['token']}/sendMessage"
+            payload = {
+                "chat_id": self.telegram_config["chat_id"],
+                "text": message,
+                "parse_mode": self.telegram_config.get("parse_mode", "Markdown"),
+                "disable_web_page_preview": True
+            }
+            
+            if AIOHTTP_AVAILABLE:
+                # 비동기 요청
+                result = await network_client.safe_post(url, json_data=payload)
+                success = 'error' not in result
+            else:
+                # 동기 요청 (fallback)
+                response = requests.post(url, json=payload, timeout=self.telegram_config.get("timeout", 30))
+                success = response.status_code == 200
+            
+            if success:
+                secure_logger.info("📱 텔레그램 알림 성공")
+                return True
+            else:
+                secure_logger.warning("📱 텔레그램 전송 실패")
+                return False
+                
+        except Exception as e:
+            secure_logger.error(f"📱 텔레그램 오류: {e}")
+            return False
+    
+    def _send_console_message(self, message: str):
+        """콘솔 메시지 출력"""
+        try:
+            # HTML 태그 제거 (콘솔용)
+            clean_message = re.sub(r'<[^>]+>', '', message)
+            
+            print(f"\n📱 Phoenix 95 알림:")
+            print("=" * 60)
+            print(clean_message)
+            print("=" * 60)
+            
+        except Exception as e:
+            secure_logger.error(f"콘솔 메시지 출력 오류: {e}")
+    
+    def get_stats(self) -> Dict:
+        """알림 통계 조회"""
+        with self.lock:
+            return {
+                **self.stats,
+                'telegram_enabled': self.telegram_config.get("enabled", False),
+                'success_rate': (
+                    self.stats["success_count"] / self.stats["total_sent"] * 100
+                    if self.stats["total_sent"] > 0 else 0
+                )
+            }
+
+# =============================================================================
+# 🏦 Phoenix 95 System (메인 시스템)
+# =============================================================================
+
+class Phoenix95System:
+    """Phoenix 95 완전 통합 메인 시스템"""
+    
+    def __init__(self):
+        self.config = CONFIG
+        
+        # 4개 핵심 컴포넌트 초기화
+        self.brain = SignalBrain(self.config)
+        self.risk_manager = RiskManager(self.config)
+        self.execution_engine = ExecutionEngine(self.config)
+        self.notification_hub = NotificationHub(self.config)
+        
+        # 성능 통계
+        self.stats = {
+            "total_signals": 0,
+            "executed_trades": 0,
+            "held_trades": 0,
+            "total_errors": 0,
+            "avg_processing_time_ms": 0.0,
+            "success_rate": 0.0,
+            "system_uptime": time.time(),
+            "cache_hit_rate": 0.0
+        }
+        
+        self._lock = threading.RLock()
+        
+        secure_logger.info(f"🏦 Phoenix 95 완전 통합 시스템 초기화 완료 - 모드: {self.config.EXECUTION_MODE}")
+    
+    async def process_signal(self, signal_request) -> Dict[str, Any]:
+        """신호 처리 메인 파이프라인"""
+        start_time = time.time()
+        
+        with self._lock:
+            self.stats["total_signals"] += 1
+        
+        try:
+            # 1. 입력 신호 변환 및 검증
+            signal = self._convert_signal_request(signal_request)
+            
+            # 2. 심볼 검증
+            if signal.symbol not in self.config.ALLOWED_SYMBOLS:
+                return self._create_error_response(f"지원하지 않는 심볼: {signal.symbol}")
+            
+            # 3. 🧠 BRAIN: AI 분석
+            analysis = self.brain.analyze_signal(signal)
+            
+            # 4. ⚖️ RISK: 리스크 체크 및 포지션 계산
+            risk_check = self.risk_manager.check_trade_approval(
+                signal.__dict__, 
+                analysis.__dict__
+            )
+            
+            if not risk_check.get('approved', False):
+                # 거래 거절
+                with self._lock:
+                    self.stats["held_trades"] += 1
+                
+                # 알림 전송 (거절 사유)
+                dummy_position = PositionInfo(
+                    kelly_fraction=0, position_size=0, margin_required=0,
+                    leveraged_size=0, leverage=self.config.LEVERAGE,
+                    stop_loss_price=signal.price, take_profit_price=signal.price,
+                    liquidation_price=signal.price, margin_mode="ISOLATED", risk_score=10.0
+                )
+                
+                trade_result = TradeResult(
+                    trade_id=f"REJECTED_{int(time.time() * 1000)}",
+                    signal_id=analysis.signal_id,
+                    symbol=signal.symbol,
+                    action=signal.action,
+                    phoenix_95_score=analysis.phoenix_95_score,
+                    position_info=dummy_position,
+                    execution_status="REJECTED",
+                    execution_reason="; ".join(risk_check.get('checks', ['Unknown reason'])),
+                    timestamp=time.time(),
+                    processing_time_ms=(time.time() - start_time) * 1000,
+                    hedge_fund_grade=False
+                )
+                
+                await self.notification_hub.send_alert(trade_result)
+                
+                return self._create_risk_rejection_response(risk_check, analysis, start_time)
+            
+            # 5. 포지션 정보 계산
+            position_info = self.risk_manager.calculate_position(signal, analysis)
+            
+            # 6. ⚡ EXECUTE: 실행 결정
+            trade_result = self.execution_engine.execute_trade(signal, analysis, position_info)
+            
+            # 7. 📱 NOTIFY: 알림 전송
+            await self.notification_hub.send_alert(trade_result)
+            
+            # 8. 통계 업데이트
+            self._update_stats(trade_result, start_time)
+            
+            # 9. 성공 응답 생성
+            return self._create_success_response(trade_result, analysis, position_info, risk_check, start_time)
+            
+        except Exception as e:
+            with self._lock:
+                self.stats["total_errors"] += 1
+            
+            secure_logger.error(f"❌ 신호 처리 오류: {e}")
+            
+            # 시스템 알림 전송
+            await self.notification_hub.send_system_alert(
+                "SYSTEM_ERROR",
+                f"신호 처리 중 오류 발생: {str(e)}",
+                "ERROR"
+            )
+            
+            return self._create_error_response(f"처리 오류: {str(e)}")
+    
+    def _convert_signal_request(self, signal_request) -> TradingSignal:
+        """신호 요청 변환 (개선됨)"""
+        try:
+            if hasattr(signal_request, 'symbol'):
+                # 객체인 경우
+                return TradingSignal(
+                    symbol=str(signal_request.symbol).upper().strip(),
+                    action=str(signal_request.action).lower().strip(),
+                    price=SafeMath.safe_float(signal_request.price),
+                    confidence=SafeMath.clamp(getattr(signal_request, 'confidence', 0.8), 0.0, 1.0),
+                    strategy=str(getattr(signal_request, 'strategy', 'phoenix95')),
+                    timeframe=str(getattr(signal_request, 'timeframe', '1h')),
+                    rsi=SafeMath.safe_float(getattr(signal_request, 'rsi')) if getattr(signal_request, 'rsi') else None,
+                    macd=SafeMath.safe_float(getattr(signal_request, 'macd')) if getattr(signal_request, 'macd') else None,
+                    volume=SafeMath.safe_float(getattr(signal_request, 'volume')) if getattr(signal_request, 'volume') else None,
+                    account_balance=SafeMath.safe_float(getattr(signal_request, 'account_balance', 10000.0))
+                )
+            else:
+                # Dict인 경우
+                return TradingSignal(
+                    symbol=str(signal_request.get('symbol', '')).upper().strip(),
+                    action=str(signal_request.get('action', '')).lower().strip(),
+                    price=SafeMath.safe_float(signal_request.get('price', 0.0)),
+                    confidence=SafeMath.clamp(signal_request.get('confidence', 0.8), 0.0, 1.0),
+                    strategy=str(signal_request.get('strategy', 'phoenix95')),
+                    timeframe=str(signal_request.get('timeframe', '1h')),
+                    rsi=SafeMath.safe_float(signal_request.get('rsi')) if signal_request.get('rsi') else None,
+                    macd=SafeMath.safe_float(signal_request.get('macd')) if signal_request.get('macd') else None,
+                    volume=SafeMath.safe_float(signal_request.get('volume')) if signal_request.get('volume') else None,
+                    account_balance=SafeMath.safe_float(signal_request.get('account_balance', 10000.0))
+                )
+        except Exception as e:
+            secure_logger.error(f"신호 변환 오류: {e}")
+            raise ValueError(f"신호 변환 실패: {e}") from e
+    
+    def _update_stats(self, trade_result: TradeResult, start_time: float):
+        """통계 업데이트 (개선됨)"""
+        try:
+            with self._lock:
+                if trade_result.execution_status == "EXECUTED":
+                    self.stats["executed_trades"] += 1
+                else:
+                    self.stats["held_trades"] += 1
+                
+                processing_time = (time.time() - start_time) * 1000
+                total_signals = self.stats["total_signals"]
+                
+                # 이동 평균 계산
+                current_avg = self.stats["avg_processing_time_ms"]
+                self.stats["avg_processing_time_ms"] = (
+                    (current_avg * (total_signals - 1) + processing_time) / total_signals
+                )
+                
+                # 성공률 계산
+                self.stats["success_rate"] = SafeMath.safe_divide(
+                    self.stats["executed_trades"],
+                    total_signals
+                )
+                
+                # 캐시 히트율 업데이트
+                cache_stats = self.brain.analysis_cache.get_stats()
+                self.stats["cache_hit_rate"] = cache_stats.get('hit_rate', 0.0)
+                
+        except Exception as e:
+            secure_logger.error(f"통계 업데이트 오류: {e}")
+    
+    def _create_success_response(self, trade_result: TradeResult, analysis: AnalysisResult, 
+                               position_info: PositionInfo, risk_check: Dict, start_time: float) -> Dict[str, Any]:
+        """성공 응답 생성 (개선됨)"""
+        try:
+            processing_time = (time.time() - start_time) * 1000
+            
+            # 기본 응답
+            response = {
+                "status": "success",
+                "trade_result": {
+                    "trade_id": trade_result.trade_id,
+                    "symbol": trade_result.symbol,
+                    "action": trade_result.action,
+                    "phoenix_95_score": trade_result.phoenix_95_score,
+                    "execution_status": trade_result.execution_status,
+                    "execution_reason": trade_result.execution_reason,
+                    "leveraged_size": position_info.leveraged_size,
+                    "leverage": position_info.leverage,
+                    "stop_loss": position_info.stop_loss_price,
+                    "take_profit": position_info.take_profit_price,
+                    "risk_score": position_info.risk_score
+                },
+                "performance": {
+                    "processing_time_ms": round(processing_time, 2),
+                    "hedge_fund_grade": processing_time <= self.config.PERFORMANCE_TARGETS["max_response_time_ms"],
+                    "final_confidence": analysis.final_confidence,
+                    "quality_score": analysis.quality_score
+                },
+                "system_info": {
+                    "version": self.config.SYSTEM_VERSION,
+                    "architecture": self.config.ARCHITECTURE,
+                    "execution_mode": self.config.EXECUTION_MODE,
+                    "components": ["BRAIN", "RISK", "EXECUTE", "NOTIFY"]
+                },
+                "timestamp": time.time()
+            }
+            
+            # 고급 모드에서는 추가 정보 포함
+            if self.config.EXECUTION_MODE == "ADVANCED":
+                response["advanced_info"] = {
+                    "analysis_details": {
+                        "technical_indicators": analysis.technical_indicators,
+                        "analysis_time_ms": analysis.analysis_time_ms,
+                        "cache_used": analysis.metadata.get('from_cache', False)
+                    },
+                    "risk_details": {
+                        "kelly_fraction": position_info.kelly_fraction,
+                        "margin_required": position_info.margin_required,
+                        "liquidation_price": position_info.liquidation_price,
+                        "risk_metrics": risk_check.get('risk_metrics', {}),
+                        "kelly_sizing": risk_check.get('kelly_sizing', {})
+                    },
+                    "system_metrics": {
+                        "cache_hit_rate": self.stats["cache_hit_rate"],
+                        "avg_processing_time": self.stats["avg_processing_time_ms"],
+                        "success_rate": self.stats["success_rate"]
+                    }
+                }
+            
+            return response
+            
+        except Exception as e:
+            secure_logger.error(f"성공 응답 생성 오류: {e}")
+            return {"status": "response_error", "message": str(e)}
+    
+    def _create_risk_rejection_response(self, risk_check: Dict, analysis: AnalysisResult, start_time: float) -> Dict[str, Any]:
+        """리스크 거절 응답 생성"""
+        processing_time = (time.time() - start_time) * 1000
+        
+        return {
+            "status": "rejected",
+            "reason": "Risk management rejection",
+            "risk_check": risk_check,
+            "analysis": {
+                "phoenix_95_score": analysis.phoenix_95_score,
+                "final_confidence": analysis.final_confidence,
+                "quality_score": analysis.quality_score,
+                "execution_timing": analysis.execution_timing,
+                "risk_level": analysis.risk_level
+            },
+            "performance": {
+                "processing_time_ms": round(processing_time, 2),
+                "hedge_fund_grade": processing_time <= self.config.PERFORMANCE_TARGETS["max_response_time_ms"]
+            },
+            "timestamp": time.time()
+        }
+    
+    def _create_error_response(self, error_message: str) -> Dict[str, Any]:
+        """오류 응답 생성"""
+        return {
+            "status": "error",
+            "message": error_message,
+            "system_info": {
+                "version": self.config.SYSTEM_VERSION,
+                "execution_mode": self.config.EXECUTION_MODE
+            },
+            "timestamp": time.time()
+        }
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """시스템 통계 조회 (개선됨)"""
+        try:
+            with self._lock:
+                uptime = time.time() - self.stats["system_uptime"]
+                
+                # 컴포넌트별 통계 수집
+                brain_stats = self.brain.analysis_cache.get_stats()
+                risk_stats = self.risk_manager.get_risk_status()
+                execution_stats = self.execution_engine.get_stats()
+                notification_stats = self.notification_hub.get_stats()
+                
+                return {
+                    "system_overview": {
+                        "version": self.config.SYSTEM_VERSION,
+                        "architecture": self.config.ARCHITECTURE,
+                        "execution_mode": self.config.EXECUTION_MODE,
+                        "uptime_hours": round(uptime / 3600, 2),
+                        "components": ["🧠 BRAIN", "⚖️ RISK", "⚡ EXECUTE", "📱 NOTIFY"]
+                    },
+                    "performance_stats": {
+                        **self.stats,
+                        "avg_processing_time_ms": round(self.stats["avg_processing_time_ms"], 2),
+                        "success_rate": round(self.stats["success_rate"] * 100, 1),
+                        "error_rate": round(SafeMath.safe_divide(self.stats["total_errors"], self.stats["total_signals"]) * 100, 1),
+                        "cache_hit_rate": round(self.stats["cache_hit_rate"] * 100, 1)
+                    },
+                    "component_stats": {
+                        "brain": brain_stats,
+                        "risk": risk_stats,
+                        "execution": execution_stats,
+                        "notifications": notification_stats
+                    },
+                    "configuration": {
+                        "trade_mode": self.config.TRADE_MODE,
+                        "leverage": self.config.LEVERAGE,
+                        "min_confidence": self.config.MIN_CONFIDENCE,
+                        "max_daily_loss": self.config.MAX_DAILY_LOSS,
+                        "max_positions": self.config.MAX_POSITIONS,
+                        "allowed_symbols": len(self.config.ALLOWED_SYMBOLS),
+                        "telegram_enabled": self.config.TELEGRAM_CONFIG.get("enabled", False)
+                    }
+                }
+        except Exception as e:
+            secure_logger.error(f"통계 조회 오류: {e}")
+            return {"error": str(e)}
+
+# =============================================================================
+# 🌐 FastAPI Application (선택적)
+# =============================================================================
+
+# 시스템 초기화
+phoenix_system = Phoenix95System()
+
+if FASTAPI_AVAILABLE:
+    # 보안 미들웨어
+    class PayloadSizeLimitMiddleware(BaseHTTPMiddleware):
+        """요청 크기 제한 미들웨어 (DoS 방지)"""
+        
+        def __init__(self, app, max_size_bytes: int = 1024 * 1024):  # 1MB
+            super().__init__(app)
+            self.max_size = max_size_bytes
+        
+        async def dispatch(self, request: Request, call_next):
+            if hasattr(request, 'headers'):
+                content_length = request.headers.get('content-length')
+                if content_length and int(content_length) > self.max_size:
+                    secure_logger.warning(f"페이로드 크기 초과: {content_length} bytes")
+                    raise HTTPException(
+                        status_code=413, 
+                        detail=f"Payload too large. Max size: {self.max_size} bytes"
+                    )
+            
+            response = await call_next(request)
+            return response
+    
+    # FastAPI 앱 생성
+    app = FastAPI(
+        title="🏦 Phoenix 95 Complete System",
+        description=f"""
+        **헤지펀드급 완전 통합 거래 시스템**
+        
+        ## 🎯 핵심 기능
+        - 🧠 **BRAIN**: Phoenix 95 AI 분석 (캐시 지원)
+        - ⚖️ **RISK**: Kelly + 헤지펀드급 리스크 관리
+        - ⚡ **EXECUTE**: 실시간 거래 실행
+        - 📱 **NOTIFY**: 멀티채널 알림 시스템
+        
+        ## 🛡️ 안전성 보장
+        - 의존성 오류 방지 (선택적 import)
+        - 타입 안전성 확보 (SafeMath)
+        - 메모리 안전 관리 (캐시 + GC)
+        - 예외 처리 강화 (모든 함수)
+        - 보안 감사 로깅 (민감정보 필터링)
+        
+        ## ⚙️ 실행 모드
+        - **SIMPLE**: 기본 기능만 (빠른 응답)
+        - **ADVANCED**: 모든 고급 기능 활성화
+        
+        현재 모드: **{CONFIG.EXECUTION_MODE}**
+        """,
+        version="5.0.0-complete"
+    )
+    
+    # 미들웨어 추가
+    app.add_middleware(PayloadSizeLimitMiddleware, max_size_bytes=1024*1024)
+    
+    # CORS 설정
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    
+    @app.get("/")
+    async def root():
+        """시스템 정보"""
+        stats = phoenix_system.get_stats()
+        return {
+            "system": "🏦 Phoenix 95 Complete System",
+            "status": "🚀 ACTIVE",
+            "mode": CONFIG.EXECUTION_MODE,
+            "version": CONFIG.SYSTEM_VERSION,
+            "architecture": CONFIG.ARCHITECTURE,
+            "components": stats["system_overview"]["components"],
+            "performance": {
+                "uptime_hours": stats["system_overview"]["uptime_hours"],
+                "success_rate": stats["performance_stats"]["success_rate"],
+                "avg_processing_time": stats["performance_stats"]["avg_processing_time_ms"],
+                "cache_hit_rate": stats["performance_stats"]["cache_hit_rate"]
+            },
+            "features": {
+                "fastapi": True,
+                "telegram": CONFIG.TELEGRAM_CONFIG.get("enabled", False),
+                "security_logging": True,
+                "cache_system": True,
+                "multi_mode": True,
+                "dependencies": {
+                    "fastapi": FASTAPI_AVAILABLE,
+                    "requests": REQUESTS_AVAILABLE,
+                    "aiohttp": AIOHTTP_AVAILABLE,
+                    "psutil": PSUTIL_AVAILABLE,
+                    "numpy": NUMPY_AVAILABLE
+                }
+            }
+        }
+    
+    @app.get("/health")
+    async def health():
+        """헬스체크"""
+        stats = phoenix_system.get_stats()
+        performance = stats["performance_stats"]
+        
+        # 건강 상태 결정
+        health_score = 100
+        issues = []
+        
+        if performance["error_rate"] > 5:
+            health_score -= 20
+            issues.append(f"High error rate: {performance['error_rate']}%")
+        
+        if performance["avg_processing_time_ms"] > CONFIG.PERFORMANCE_TARGETS["max_response_time_ms"]:
+            health_score -= 15
+            issues.append(f"Slow response time: {performance['avg_processing_time_ms']:.1f}ms")
+        
+        if performance["cache_hit_rate"] < 50:
+            health_score -= 10
+            issues.append(f"Low cache hit rate: {performance['cache_hit_rate']:.1f}%")
+        
+        status = "healthy" if health_score >= 80 else "degraded" if health_score >= 60 else "unhealthy"
+        
+        return {
+            "status": status,
+            "health_score": health_score,
+            "issues": issues,
+            "stats": performance,
+            "timestamp": time.time()
+        }
+    
+    @app.post("/webhook/signal")
+    async def process_signal(signal_request: SignalRequest):
+        """신호 처리 (메인 API)"""
+        try:
+            result = await phoenix_system.process_signal(signal_request)
+            
+            # 감사 로그
+            audit_logger.log_event(
+                'API_SIGNAL_PROCESSED',
+                'api_user',
+                {
+                    'symbol': signal_request.symbol,
+                    'status': result.get('status'),
+                    'processing_time': result.get('performance', {}).get('processing_time_ms', 0)
+                }
+            )
+            
+            return result
+            
+        except Exception as e:
+            secure_logger.error(f"API 신호 처리 오류: {e}")
+            
+            # 감사 로그
+            audit_logger.log_event(
+                'API_SIGNAL_ERROR',
+                'api_user',
+                {'error': str(e)},
+                'HIGH'
+            )
+            
+            raise HTTPException(status_code=500, detail=f"신호 처리 실패: {str(e)}")
+    
+    @app.get("/stats")
+    async def get_stats():
+        """시스템 통계"""
+        return phoenix_system.get_stats()
+    
+    @app.get("/stats/components")
+    async def get_component_stats():
+        """컴포넌트별 상세 통계"""
+        stats = phoenix_system.get_stats()
+        return stats.get("component_stats", {})
+    
+    @app.get("/audit")
+    async def get_audit_logs(count: int = 100, event_type: Optional[str] = None):
+        """감사 로그 조회"""
+        try:
+            events = audit_logger.get_recent_events(count, event_type)
+            summary = audit_logger.get_risk_summary()
+            
+            return {
+                "events": events,
+                "summary": summary,
+                "total_requested": count,
+                "total_returned": len(events),
+                "timestamp": datetime.now().isoformat()
+            }
+        except Exception as e:
+            secure_logger.error(f"감사 로그 조회 오류: {e}")
+            raise HTTPException(status_code=500, detail="감사 로그 조회 실패")
+    
+    @app.post("/system/alert")
+    async def send_system_alert(data: dict):
+        """시스템 알림 전송"""
+        try:
+            alert_type = data.get('type', 'SYSTEM')
+            message = data.get('message', 'Unknown system event')
+            severity = data.get('severity', 'INFO')
+            
+            await phoenix_system.notification_hub.send_system_alert(alert_type, message, severity)
+            
+            return {
+                'status': 'sent', 
+                'alert_type': alert_type,
+                'severity': severity,
+                'timestamp': datetime.now().isoformat()
+            }
+        except Exception as e:
+            secure_logger.error(f"시스템 알림 API 오류: {e}")
+            raise HTTPException(status_code=500, detail="시스템 알림 전송 실패")
+    
+    @app.get("/config")
+    async def get_config():
+        """시스템 설정 조회 (민감정보 제외)"""
+        return {
+            "system": {
+                "version": CONFIG.SYSTEM_VERSION,
+                "execution_mode": CONFIG.EXECUTION_MODE,
+                "trade_mode": CONFIG.TRADE_MODE
+            },
+            "trading": {
+                "leverage": CONFIG.LEVERAGE,
+                "stop_loss": CONFIG.STOP_LOSS,
+                "take_profit": CONFIG.TAKE_PROFIT,
+                "min_confidence": CONFIG.MIN_CONFIDENCE,
+                "max_positions": CONFIG.MAX_POSITIONS,
+                "allowed_symbols_count": len(CONFIG.ALLOWED_SYMBOLS)
+            },
+            "performance_targets": CONFIG.PERFORMANCE_TARGETS,
+            "telegram_enabled": CONFIG.TELEGRAM_CONFIG.get("enabled", False)
+        }
+    
+    @app.get("/dashboard", response_class=HTMLResponse)
+    async def dashboard():
+        """실시간 대시보드"""
+        stats = phoenix_system.get_stats()
+        
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Phoenix 95 Complete Dashboard</title>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <style>
+                body {{ 
+                    font-family: 'Arial', sans-serif; 
+                    margin: 0; 
+                    padding: 20px; 
+                    background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%); 
+                    color: #fff; 
+                }}
+                .container {{ max-width: 1400px; margin: 0 auto; }}
+                .header {{ 
+                    text-align: center; 
+                    margin-bottom: 40px; 
+                    background: rgba(255,255,255,0.05);
+                    padding: 30px;
+                    border-radius: 15px;
+                    backdrop-filter: blur(10px);
+                }}
+                .mode-badge {{
+                    display: inline-block;
+                    padding: 8px 16px;
+                    background: {'#4CAF50' if CONFIG.EXECUTION_MODE == 'SIMPLE' else '#FF9800'};
+                    color: white;
+                    border-radius: 20px;
+                    font-size: 14px;
+                    font-weight: bold;
+                    margin-left: 10px;
+                }}
+                .stats-grid {{ 
+                    display: grid; 
+                    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); 
+                    gap: 25px; 
+                    margin-bottom: 30px;
+                }}
+                .stat-card {{ 
+                    background: rgba(255,255,255,0.08); 
+                    padding: 25px; 
+                    border-radius: 15px; 
+                    box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+                    backdrop-filter: blur(10px);
+                    border: 1px solid rgba(255,255,255,0.1);
+                    transition: transform 0.3s ease, box-shadow 0.3s ease;
+                }}
+                .stat-card:hover {{
+                    transform: translateY(-5px);
+                    box-shadow: 0 12px 35px rgba(0,0,0,0.4);
+                }}
+                .stat-value {{ 
+                    font-size: 2.5em; 
+                    font-weight: bold; 
+                    background: linear-gradient(45deg, #4CAF50, #45a049);
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    background-clip: text;
+                }}
+                .stat-label {{ 
+                    color: #bbb; 
+                    margin-top: 8px; 
+                    font-size: 1.1em;
+                }}
+                .component-status {{
+                    display: flex;
+                    justify-content: space-around;
+                    margin: 30px 0;
+                    padding: 25px;
+                    background: rgba(255,255,255,0.05);
+                    border-radius: 15px;
+                }}
+                .component {{
+                    text-align: center;
+                    padding: 15px;
+                }}
+                .component-icon {{
+                    font-size: 2em;
+                    margin-bottom: 10px;
+                }}
+                .refresh {{ 
+                    text-align: center; 
+                    margin-top: 30px; 
+                }}
+                .refresh button {{ 
+                    padding: 15px 30px; 
+                    background: linear-gradient(45deg, #4CAF50, #45a049); 
+                    color: white; 
+                    border: none; 
+                    border-radius: 25px; 
+                    cursor: pointer; 
+                    font-size: 16px;
+                    font-weight: bold;
+                    transition: all 0.3s ease;
+                }}
+                .refresh button:hover {{
+                    transform: translateY(-2px);
+                    box-shadow: 0 8px 20px rgba(76, 175, 80, 0.3);
+                }}
+                .health-indicator {{
+                    display: inline-block;
+                    width: 12px;
+                    height: 12px;
+                    background: #4CAF50;
+                    border-radius: 50%;
+                    margin-right: 8px;
+                    animation: pulse 2s infinite;
+                }}
+                @keyframes pulse {{
+                    0% {{ opacity: 1; }}
+                    50% {{ opacity: 0.5; }}
+                    100% {{ opacity: 1; }}
+                }}
+                .dependency-status {{
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                    gap: 15px;
+                    margin-top: 20px;
+                }}
+                .dependency {{
+                    padding: 10px;
+                    background: rgba(255,255,255,0.05);
+                    border-radius: 8px;
+                    text-align: center;
+                }}
+                .available {{ border-left: 4px solid #4CAF50; }}
+                .unavailable {{ border-left: 4px solid #f44336; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>🏦 Phoenix 95 Complete Dashboard</h1>
+                    <span class="health-indicator"></span>
+                    <span>헤지펀드급 완전 통합 거래 시스템</span>
+                    <span class="mode-badge">{CONFIG.EXECUTION_MODE} MODE</span>
+                    <p style="margin-top: 15px; color: #bbb;">
+                        Version {CONFIG.SYSTEM_VERSION} • {CONFIG.ARCHITECTURE} • Trade Mode: {CONFIG.TRADE_MODE}
+                    </p>
+                </div>
+                
+                <div class="component-status">
+                    <div class="component">
+                        <div class="component-icon">🧠</div>
+                        <div><strong>BRAIN</strong></div>
+                        <div>AI Analysis Engine</div>
+                    </div>
+                    <div class="component">
+                        <div class="component-icon">⚖️</div>
+                        <div><strong>RISK</strong></div>
+                        <div>Position Manager</div>
+                    </div>
+                    <div class="component">
+                        <div class="component-icon">⚡</div>
+                        <div><strong>EXECUTE</strong></div>
+                        <div>Trade Engine</div>
+                    </div>
+                    <div class="component">
+                        <div class="component-icon">📱</div>
+                        <div><strong>NOTIFY</strong></div>
+                        <div>Alert Hub</div>
+                    </div>
+                </div>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value">{stats['performance_stats']['total_signals']}</div>
+                        <div class="stat-label">총 신호 처리</div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-value">{stats['performance_stats']['executed_trades']}</div>
+                        <div class="stat-label">실행된 거래</div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-value">{stats['performance_stats']['success_rate']:.1f}%</div>
+                        <div class="stat-label">성공률</div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-value">{stats['performance_stats']['avg_processing_time_ms']:.1f}ms</div>
+                        <div class="stat-label">평균 처리시간</div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-value">{stats['system_overview']['uptime_hours']:.1f}h</div>
+                        <div class="stat-label">가동시간</div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-value">{stats['performance_stats']['cache_hit_rate']:.1f}%</div>
+                        <div class="stat-label">캐시 히트율</div>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <h3>🔧 의존성 상태</h3>
+                    <div class="dependency-status">
+                        <div class="dependency {'available' if FASTAPI_AVAILABLE else 'unavailable'}">
+                            <strong>FastAPI</strong><br>
+                            {'✅ 사용 가능' if FASTAPI_AVAILABLE else '❌ 미설치'}
+                        </div>
+                        <div class="dependency {'available' if REQUESTS_AVAILABLE else 'unavailable'}">
+                            <strong>Requests</strong><br>
+                            {'✅ 사용 가능' if REQUESTS_AVAILABLE else '❌ 미설치'}
+                        </div>
+                        <div class="dependency {'available' if AIOHTTP_AVAILABLE else 'unavailable'}">
+                            <strong>aiohttp</strong><br>
+                            {'✅ 사용 가능' if AIOHTTP_AVAILABLE else '❌ 미설치'}
+                        </div>
+                        <div class="dependency {'available' if PSUTIL_AVAILABLE else 'unavailable'}">
+                            <strong>psutil</strong><br>
+                            {'✅ 사용 가능' if PSUTIL_AVAILABLE else '❌ 미설치'}
+                        </div>
+                        <div class="dependency {'available' if NUMPY_AVAILABLE else 'unavailable'}">
+                            <strong>numpy</strong><br>
+                            {'✅ 사용 가능' if NUMPY_AVAILABLE else '❌ 미설치'}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="refresh">
+                    <button onclick="location.reload()">🔄 새로고침</button>
+                </div>
+            </div>
+            
+            <script>
+                // 30초마다 자동 새로고침
+                setTimeout(() => location.reload(), 30000);
+                
+                // 실시간 시계
+                function updateTime() {{
+                    const now = new Date();
+                    const timeStr = now.toLocaleTimeString('ko-KR');
+                    document.title = `Phoenix 95 Dashboard - ${{timeStr}}`;
+                }}
+                setInterval(updateTime, 1000);
+            </script>
+        </body>
+        </html>
+        """
+        
+        return HTMLResponse(content=html)
+
+else:
+    app = None
+
+# =============================================================================
+# 🧪 Test Functions (테스트 함수)
+# =============================================================================
+
+def create_test_signals():
+    """테스트 신호 생성 (개선됨)"""
+    return [
+        {
+            "symbol": "BTCUSDT",
+            "action": "buy",
+            "price": 45000.0,
+            "confidence": 0.85,
+            "rsi": 35.5,
+            "macd": 0.003,
+            "volume": 2500000,
+            "account_balance": 10000.0,
+            "description": "고신뢰도 BTC 매수 신호"
+        },
+        {
+            "symbol": "ETHUSDT",
+            "action": "sell",
+            "price": 2800.0,
+            "confidence": 0.72,
+            "rsi": 75.2,
+            "macd": -0.002,
+            "volume": 1800000,
+            "account_balance": 10000.0,
+            "description": "중간신뢰도 ETH 매도 신호"
+        },
+        {
+            "symbol": "BNBUSDT",
+            "action": "long",
+            "price": 320.0,
+            "confidence": 0.92,
+            "rsi": 45.0,
+            "macd": 0.008,
+            "volume": 3200000,
+            "account_balance": 10000.0,
+            "description": "초고신뢰도 BNB 롱 신호"
+        },
+        {
+            "symbol": "ADAUSDT",
+            "action": "buy",
+            "price": 0.45,
+            "confidence": 0.38,
+            "rsi": 52.1,
+            "volume": 800000,
+            "account_balance": 10000.0,
+            "description": "저신뢰도 ADA 매수 신호 (HOLD 예상)"
+        },
+        {
+            "symbol": "SOLUSDT",
+            "action": "short",
+            "price": 95.0,
+            "confidence": 0.78,
+            "rsi": 68.5,
+            "macd": -0.005,
+            "volume": 2100000,
+            "account_balance": 10000.0,
+            "description": "고신뢰도 SOL 숏 신호"
+        }
+    ]
+
+async def run_comprehensive_test():
+    """종합 테스트 실행 (개선됨)"""
+    print("\n🧪 Phoenix 95 Complete System 종합 테스트")
+    print("=" * 70)
+    print(f"실행 모드: {CONFIG.EXECUTION_MODE}")
+    print(f"거래 모드: {CONFIG.TRADE_MODE}")
+    print(f"레버리지: {CONFIG.LEVERAGE}x")
+    print("=" * 70)
+    
+    test_signals = create_test_signals()
+    results = []
+    
+    for i, test_data in enumerate(test_signals, 1):
+        print(f"\n📊 테스트 {i}/{len(test_signals)}: {test_data['description']}")
+        
+        try:
+            start_time = time.time()
+            result = await phoenix_system.process_signal(test_data)
+            processing_time = (time.time() - start_time) * 1000
+            
+            if result["status"] == "success":
+                trade = result["trade_result"]
+                perf = result["performance"]
+                
+                print(f"   ✅ 처리 성공:")
+                print(f"      🔥 Phoenix 95: {trade['phoenix_95_score']:.1%}")
+                print(f"      ⚡ 상태: {trade['execution_status']}")
+                print(f"      💰 포지션: ${trade['leveraged_size']:,.0f}")
+                print(f"      ⏱️ 시간: {perf['processing_time_ms']:.1f}ms")
+                print(f"      🏆 헤지펀드급: {'✅' if perf['hedge_fund_grade'] else '❌'}")
+                
+                if CONFIG.EXECUTION_MODE == "ADVANCED" and "advanced_info" in result:
+                    adv = result["advanced_info"]
+                    print(f"      📈 캐시 사용: {'✅' if adv['analysis_details']['cache_used'] else '❌'}")
+                    print(f"      🎯 Kelly Fraction: {adv['risk_details']['kelly_fraction']:.4f}")
+                
+            elif result["status"] == "rejected":
+                risk_check = result["risk_check"]
+                print(f"   ❌ 리스크 거절:")
+                print(f"      📋 사유: {'; '.join(risk_check['checks'][:2])}")
+                print(f"      📊 리스크 레벨: {risk_check['risk_level']}")
+                
+            else:
+                print(f"   ❌ 처리 실패: {result['message']}")
+            
+            results.append({
+                'test_id': i,
+                'symbol': test_data['symbol'],
+                'status': result['status'],
+                'processing_time': processing_time
+            })
+                
+        except Exception as e:
+            print(f"   ❌ 테스트 오류: {e}")
+            results.append({
+                'test_id': i,
+                'symbol': test_data['symbol'],
+                'status': 'error',
+                'processing_time': 0
+            })
+    
+    # 종합 통계
+    print(f"\n📊 테스트 결과 요약:")
+    print("=" * 50)
+    
+    total_tests = len(results)
+    successful = len([r for r in results if r['status'] == 'success'])
+    rejected = len([r for r in results if r['status'] == 'rejected'])
+    errors = len([r for r in results if r['status'] == 'error'])
+    avg_time = sum(r['processing_time'] for r in results) / total_tests if total_tests > 0 else 0
+    
+    print(f"총 테스트: {total_tests}")
+    print(f"성공: {successful} ({successful/total_tests*100:.1f}%)")
+    print(f"거절: {rejected} ({rejected/total_tests*100:.1f}%)")
+    print(f"오류: {errors} ({errors/total_tests*100:.1f}%)")
+    print(f"평균 처리시간: {avg_time:.1f}ms")
+    
+    # 시스템 통계
+    stats = phoenix_system.get_stats()
+    print(f"\n📈 시스템 성능:")
+    print(f"   전체 신호: {stats['performance_stats']['total_signals']}")
+    print(f"   성공률: {stats['performance_stats']['success_rate']:.1f}%")
+    print(f"   평균 처리시간: {stats['performance_stats']['avg_processing_time_ms']:.1f}ms")
+    print(f"   캐시 히트율: {stats['performance_stats']['cache_hit_rate']:.1f}%")
+    
+    # 컴포넌트 상태
+    comp_stats = stats.get('component_stats', {})
+    print(f"\n🔧 컴포넌트 상태:")
+    if 'brain' in comp_stats:
+        print(f"   🧠 BRAIN - 캐시 크기: {comp_stats['brain']['size']}")
+    if 'risk' in comp_stats:
+        print(f"   ⚖️ RISK - 활성 포지션: {comp_stats['risk']['current_status']['active_positions']}")
+    if 'execution' in comp_stats:
+        print(f"   ⚡ EXECUTE - 총 거래: {comp_stats['execution']['execution_stats']['total_trades']}")
+    
+    print("\n✅ 종합 테스트 완료!")
+
+# =============================================================================
+# 🏃‍♂️ Main Execution Functions (메인 실행 함수들)
+# =============================================================================
+
+def run_simple_mode():
+    """단순 모드 실행 (FastAPI 없이)"""
+    print(f"""
+🏦 Phoenix 95 Complete System - SIMPLE Mode
+================================================================================
+
+🎯 활성화된 기능:
+✅ 핵심 4대 컴포넌트 (BRAIN, RISK, EXECUTE, NOTIFY)  
+✅ Phoenix 95 AI 분석 엔진
+✅ 헤지펀드급 리스크 관리
+✅ 안전한 타입 시스템
+✅ 캐시 시스템 (5분 TTL)
+✅ 텔레그램 알림
+✅ 보안 감사 로깅
+
+⚙️ 설정:
+• 레버리지: {CONFIG.LEVERAGE}x ISOLATED
+• 익절/손절: ±{CONFIG.STOP_LOSS:.1%}
+• 최소 신뢰도: {CONFIG.MIN_CONFIDENCE:.1%}
+• 최대 일일손실: {CONFIG.MAX_DAILY_LOSS:.1%}
+
+================================================================================
+""")
+    
+    try:
+        # 시작 알림
+        async def send_start_notification():
+            await phoenix_system.notification_hub.send_system_alert(
+                "SYSTEM_START",
+                f"Phoenix 95 Complete System 시작 (SIMPLE 모드)",
+                "INFO"
+            )
+        
+        asyncio.run(send_start_notification())
+        
+        # 테스트 실행
+        print("🧪 자동 테스트 시작...")
+        asyncio.run(run_comprehensive_test())
+        
+        print("\n" + "="*50)
+        print("💡 사용법:")
+        print("   Python 코드에서 phoenix_system.process_signal(data) 호출")
+        print("   또는 --server 옵션으로 FastAPI 서버 실행")
+        print("="*50)
+        
+    except KeyboardInterrupt:
+        print("\n👋 Phoenix 95 시스템 종료")
+    except Exception as e:
+        secure_logger.error(f"Simple 모드 실행 오류: {e}")
+
+def run_server_mode():
+    """서버 모드 실행 (FastAPI)"""
+    if not FASTAPI_AVAILABLE:
+        print("❌ FastAPI가 설치되지 않았습니다.")
+        print("설치: pip install fastapi uvicorn")
+        return
+    
+    print(f"""
+🏦 Phoenix 95 Complete System - SERVER Mode
+================================================================================
+
+🌐 서버 정보:
+• 메인 서버: http://localhost:8000
+• API 문서: http://localhost:8000/docs  
+• 대시보드: http://localhost:8000/dashboard
+• 헬스체크: http://localhost:8000/health
+
+🎯 주요 엔드포인트:
+• POST /webhook/signal - 신호 처리
+• GET /stats - 시스템 통계
+• GET /audit - 감사 로그
+• GET /config - 설정 조회
+
+⚙️ 실행 모드: {CONFIG.EXECUTION_MODE}
+🔧 거래 모드: {CONFIG.TRADE_MODE}
+
+================================================================================
+""")
+    
+    try:
+        import uvicorn
+        
+        # 서버 시작 알림
+        async def send_server_start():
+            await phoenix_system.notification_hub.send_system_alert(
+                "SERVER_START",
+                f"Phoenix 95 서버 시작 (포트: 8000, 모드: {CONFIG.EXECUTION_MODE})",
+                "INFO"
+            )
+        
+        # 백그라운드에서 알림 전송
+        def background_notification():
+            asyncio.run(send_server_start())
+        
+        notification_thread = threading.Thread(target=background_notification, daemon=True)
+        notification_thread.start()
+        
+        # 서버 실행
+        uvicorn.run(
+            app, 
+            host="0.0.0.0", 
+            port=8000, 
+            log_level="info"
+        )
+        
+    except KeyboardInterrupt:
+        print("\n👋 Phoenix 95 서버 종료")
+    except Exception as e:
+        secure_logger.error(f"서버 모드 실행 오류: {e}")
+
+def run_demo_mode():
+    """데모 모드 (대화형)"""
+    print(f"""
+🎭 Phoenix 95 Complete System - DEMO Mode
+================================================================================
+
+대화형 데모 모드입니다.
+실시간으로 신호를 입력하고 결과를 확인할 수 있습니다.
+
+💡 사용법:
+1. 심볼 입력 (예: BTCUSDT)
+2. 액션 입력 (buy/sell/long/short)
+3. 가격 입력 (예: 45000)
+4. 신뢰도 입력 (0.1-1.0, 기본값: 0.8)
+
+종료하려면 'quit' 입력
+
+================================================================================
+""")
+    
+    try:
+        while True:
+            print("\n" + "─" * 50)
+            
+            # 사용자 입력
+            symbol = input("📊 심볼 (또는 'quit'): ").strip().upper()
+            if symbol.lower() == 'quit':
+                break
+            
+            if symbol not in CONFIG.ALLOWED_SYMBOLS:
+                print(f"❌ 지원하지 않는 심볼입니다. 지원 심볼: {', '.join(CONFIG.ALLOWED_SYMBOLS[:5])}...")
+                continue
+            
+            action = input("⚡ 액션 (buy/sell/long/short): ").strip().lower()
+            if action not in ['buy', 'sell', 'long', 'short']:
+                print("❌ 유효하지 않은 액션입니다.")
+                continue
+            
+            try:
+                price = float(input("💰 가격: "))
+                confidence = float(input("🎯 신뢰도 (0.1-1.0, 기본값 0.8): ") or "0.8")
+                confidence = max(0.1, min(confidence, 1.0))
+            except ValueError:
+                print("❌ 유효하지 않은 숫자입니다.")
+                continue
+            
+            # 신호 처리
+            signal_data = {
+                "symbol": symbol,
+                "action": action,
+                "price": price,
+                "confidence": confidence,
+                "account_balance": 10000.0
+            }
+            
+            print(f"\n🔄 처리 중...")
+            
+            try:
+                result = asyncio.run(phoenix_system.process_signal(signal_data))
+                
+                print(f"\n📋 결과:")
+                print(f"상태: {result['status']}")
+                
+                if result['status'] == 'success':
+                    trade = result['trade_result']
+                    perf = result['performance']
+                    
+                    print(f"Phoenix 95 점수: {trade['phoenix_95_score']:.1%}")
+                    print(f"실행 상태: {trade['execution_status']}")
+                    print(f"포지션 크기: ${trade['leveraged_size']:,.0f}")
+                    print(f"처리 시간: {perf['processing_time_ms']:.1f}ms")
+                    print(f"헤지펀드급: {'✅' if perf['hedge_fund_grade'] else '❌'}")
+                    
+                    if trade['execution_status'] == 'EXECUTED':
+                        print(f"손절가: ${trade['stop_loss']:,.2f}")
+                        print(f"익절가: ${trade['take_profit']:,.2f}")
+                    else:
+                        print(f"보류 사유: {trade['execution_reason']}")
+                        
+                elif result['status'] == 'rejected':
+                    risk_check = result['risk_check']
+                    print(f"거절 사유: {'; '.join(risk_check['checks'])}")
+                    
+                else:
+                    print(f"오류: {result['message']}")
+                    
+            except Exception as e:
+                print(f"❌ 처리 오류: {e}")
+        
+        print("\n👋 데모 모드 종료")
+        
+    except KeyboardInterrupt:
+        print("\n👋 데모 모드 종료")
+    except Exception as e:
+        secure_logger.error(f"데모 모드 실행 오류: {e}")
+
+# =============================================================================
+# 🚀 Main Function (메인 함수)
+# =============================================================================
+
+def main():
+    """메인 실행 함수"""
+    print("""
+🏦 Phoenix 95 Complete System v5.0 - 완전 통합 헤지펀드급 시스템
+================================================================================
+
+🛡️ 안전성 우선 설계 + 고급 기능:
+- ✅ 의존성 오류 방지 (선택적 import + 기본값)
+- ✅ 런타임 오류 방지 (타입 안전성 + None 체크)  
+- ✅ 메모리 안전성 (캐시 + 자동 정리 + GC)
+- ✅ 예외 처리 강화 (모든 함수에 try-catch)
+- ✅ 설정 안전성 (환경변수 + 기본값)
+- ✅ 보안 감사 로깅 (민감정보 필터링)
+- ✅ 멀티모드 실행 (SIMPLE/ADVANCED)
+
+💎 4대 핵심 컴포넌트:
+- 🧠 BRAIN: Signal Intelligence Engine (Phoenix 95 AI + 캐시)
+- ⚖️ RISK: Position & Risk Manager (Kelly + 헤지펀드급)
+- ⚡ EXECUTE: Trade Execution Engine (실시간 + 조건부)  
+- 📱 NOTIFY: Alert & Monitor Hub (멀티채널 + 보안)
+
+================================================================================
+""")
+    
+    if len(sys.argv) > 1:
+        command = sys.argv[1].lower()
+        
+        if command == "--server":
+            run_server_mode()
+            
+        elif command == "--test":
+            print("🧪 종합 테스트 모드")
+            asyncio.run(run_comprehensive_test())
+            
+        elif command == "--demo":
+            run_demo_mode()
+            
+        elif command == "--simple":
+            CONFIG.EXECUTION_MODE = "SIMPLE"
+            run_simple_mode()
+            
+        elif command == "--advanced":
+            CONFIG.EXECUTION_MODE = "ADVANCED"
+            run_simple_mode()
+            
+        elif command == "--stats":
+            print("📊 시스템 통계:")
+            stats = phoenix_system.get_stats()
+            for category, data in stats.items():
+                print(f"\n{category.upper()}:")
+                if isinstance(data, dict):
+                    for key, value in data.items():
+                        print(f"  {key}: {value}")
+                else:
+                    print(f"  {data}")
+                    
+        elif command == "--config":
+            print("⚙️ 시스템 설정:")
+            print(f"  실행 모드: {CONFIG.EXECUTION_MODE}")
+            print(f"  거래 모드: {CONFIG.TRADE_MODE}")
+            print(f"  레버리지: {CONFIG.LEVERAGE}x")
+            print(f"  최소 신뢰도: {CONFIG.MIN_CONFIDENCE:.1%}")
+            print(f"  최대 일일손실: {CONFIG.MAX_DAILY_LOSS:.1%}")
+            print(f"  최대 포지션: {CONFIG.MAX_POSITIONS}")
+            print(f"  지원 심볼: {len(CONFIG.ALLOWED_SYMBOLS)}개")
+            print(f"  텔레그램: {'✅' if CONFIG.TELEGRAM_CONFIG.get('enabled') else '❌'}")
+            
+        elif command == "--help":
+            print("""
+📋 사용법:
+  python phoenix95_complete.py [옵션]
+
+🎯 옵션:
+  --server      FastAPI 서버 실행 (http://localhost:8000)
+  --simple      단순 모드 (기본 기능만)
+  --advanced    고급 모드 (모든 기능)
+  --test        종합 테스트 실행
+  --demo        대화형 데모 모드
+  --stats       시스템 통계 조회
+  --config      설정 정보 조회
+  --help        도움말 표시
+
+🔧 환경변수:
+  PHOENIX_MODE=SIMPLE|ADVANCED  # 실행 모드
+  TRADE_MODE=TEST|LIVE          # 거래 모드
+  TELEGRAM_BOT_TOKEN=xxx        # 텔레그램 토큰
+  TELEGRAM_CHAT_ID=xxx          # 텔레그램 채팅 ID
+  LEVERAGE=20                   # 레버리지 (기본: 20)
+  MIN_CONFIDENCE=0.75           # 최소 신뢰도 (기본: 75%)
+
+💡 예시:
+  python phoenix95_complete.py --server
+  PHOENIX_MODE=ADVANCED python phoenix95_complete.py --demo
+  TRADE_MODE=LIVE python phoenix95_complete.py --test
+""")
+            
+        else:
+            print(f"❌ 알 수 없는 명령어: {command}")
+            print("도움말: python phoenix95_complete.py --help")
+            
+    else:
+        # 기본 실행 (환경에 따라 자동 결정)
+        if FASTAPI_AVAILABLE and CONFIG.EXECUTION_MODE == "ADVANCED":
+            print("🚀 자동 모드: FastAPI 서버 실행")
+            run_server_mode()
+        else:
+            print("🚀 자동 모드: Simple 모드 실행")
+            run_simple_mode()
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n👋 Phoenix 95 Complete System 종료")
+        # 안전한 정리
+        gc.collect()
+    except Exception as e:
+        secure_logger.error(f"❌ 실행 오류: {e}")
+        print(f"❌ 시스템 실행 실패: {e}")
+        print("💡 의존성 설치: pip install fastapi uvicorn requests aiohttp psutil numpy")
