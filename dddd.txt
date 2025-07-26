@@ -1,0 +1,985 @@
+#!/bin/bash
+# Phoenix 95 V4 Enhanced 완전 복구 실행 스크립트 및 설정 파일 모음
+
+# =============================================================================
+# 1. 메인 실행 스크립트 (run_phoenix95_recovery.sh)
+# =============================================================================
+
+cat > run_phoenix95_recovery.sh << 'EOF'
+#!/bin/bash
+# Phoenix 95 V4 Enhanced 완전 복구 및 최적화 실행 스크립트
+
+set -e
+echo "🚀 Phoenix 95 V4 Enhanced 완전 복구 시스템 시작"
+echo "=================================================="
+
+# 색상 정의
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# 함수 정의
+log_info() {
+    echo -e "${BLUE}[INFO]${NC} $1"
+}
+
+log_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
+
+log_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# 환경 체크
+check_requirements() {
+    log_info "환경 요구사항 체크 중..."
+    
+    # Python 체크
+    if ! command -v python3 &> /dev/null; then
+        log_error "Python 3가 설치되어 있지 않습니다"
+        exit 1
+    fi
+    
+    # Docker 체크 (선택사항)
+    if command -v docker &> /dev/null; then
+        log_success "Docker 발견됨"
+    else
+        log_warning "Docker가 설치되어 있지 않습니다 (선택사항)"
+    fi
+    
+    # 필요한 Python 패키지 설치
+    log_info "Python 의존성 설치 중..."
+    pip3 install --quiet aiohttp aiofiles || {
+        log_warning "일부 패키지 설치 실패, 계속 진행합니다"
+    }
+    
+    log_success "환경 요구사항 체크 완료"
+}
+
+# 백업 생성
+create_backup() {
+    log_info "현재 상태 백업 생성 중..."
+    
+    BACKUP_DIR="backups/$(date +%Y%m%d_%H%M%S)"
+    mkdir -p "$BACKUP_DIR"
+    
+    # 중요 파일들 백업
+    if [ -f "docker-compose.yml" ]; then
+        cp docker-compose.yml "$BACKUP_DIR/"
+    fi
+    
+    if [ -f "requirements.txt" ]; then
+        cp requirements.txt "$BACKUP_DIR/"
+    fi
+    
+    if [ -d "services" ]; then
+        cp -r services "$BACKUP_DIR/" 2>/dev/null || true
+    fi
+    
+    log_success "백업 생성 완료: $BACKUP_DIR"
+}
+
+# 복구 시스템 실행
+run_recovery_system() {
+    log_info "Phoenix 95 V4 복구 시스템 실행 중..."
+    
+    # 메인 복구 스크립트 실행
+    python3 -c "
+import asyncio
+import sys
+import os
+
+# 현재 디렉토리에서 복구 시스템 실행
+sys.path.append(os.getcwd())
+
+# 복구 시스템 코드 실행 (이미 생성된 아티팩트 사용)
+async def main():
+    from phoenix95_complete_recovery_system import Phoenix95CompleteRecoverySystem
+    
+    recovery_system = Phoenix95CompleteRecoverySystem('.')
+    results = await recovery_system.run_complete_recovery()
+    
+    print('\\n' + '='*80)
+    print('📊 복구 결과 요약')
+    print('='*80)
+    
+    if 'error' in results:
+        print(f'❌ 오류: {results[\"error\"]}')
+        return False
+    
+    print(f'⏱️ 실행 시간: {results.get(\"execution_time\", 0):.2f}초')
+    print(f'📁 분석된 파일 수: {results.get(\"structure_analysis\", {}).get(\"total_files\", 0)}')
+    print(f'🔧 수정된 이슈 수: {len(results.get(\"quality_improvement\", {}).get(\"issues_fixed\", []))}')
+    print(f'⚡ 최적화 적용 수: {len(results.get(\"performance_optimization\", {}).get(\"optimizations_applied\", []))}')
+    
+    return True
+
+if __name__ == '__main__':
+    success = asyncio.run(main())
+    sys.exit(0 if success else 1)
+"
+    
+    if [ $? -eq 0 ]; then
+        log_success "복구 시스템 실행 완료"
+    else
+        log_error "복구 시스템 실행 실패"
+        return 1
+    fi
+}
+
+# 서비스 구조 생성
+create_service_structure() {
+    log_info "V4 서비스 구조 생성 중..."
+    
+    # V4 필수 서비스들
+    services=(
+        "api-gateway-enterprise:8100"
+        "signal-ingestion-pro:8101"
+        "market-data-intelligence:8102"
+        "phoenix95-ai-engine:8103"
+        "trade-execution-leverage:8106"
+        "position-tracker-realtime:8107"
+        "notification-hub-intelligent:8109"
+    )
+    
+    for service_info in "${services[@]}"; do
+        IFS=':' read -r service_name port <<< "$service_info"
+        
+        log_info "서비스 생성 중: $service_name (포트: $port)"
+        
+        # 서비스 디렉토리 구조 생성
+        mkdir -p "services/$service_name"/{domain,application,infrastructure,interfaces/api}
+        
+        # 기본 __init__.py 파일들 생성
+        for layer in domain application infrastructure interfaces; do
+            echo "\"\"\"Phoenix 95 V4 $service_name $layer layer\"\"\"" > "services/$service_name/$layer/__init__.py"
+        done
+        
+        # FastAPI 메인 앱 생성
+        cat > "services/$service_name/interfaces/api/main.py" << PYTHON_EOF
+"""
+Phoenix 95 V4 $service_name FastAPI Application
+"""
+
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
+import logging
+
+# 로깅 설정
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+app = FastAPI(
+    title="${service_name//-/ }",
+    description="Phoenix 95 V4 Enhanced $service_name",
+    version="4.0.0"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.get("/health")
+async def health_check():
+    """헬스체크 엔드포인트"""
+    return {
+        "status": "healthy",
+        "service": "$service_name",
+        "port": $port,
+        "version": "4.0.0"
+    }
+
+@app.get("/ready")
+async def readiness_check():
+    """준비 상태 확인"""
+    return {
+        "status": "ready",
+        "service": "$service_name",
+        "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    }
+
+@app.get("/metrics")
+async def metrics():
+    """프로메테우스 메트릭"""
+    return {"metrics": "# Prometheus metrics here"}
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=$port)
+PYTHON_EOF
+
+        # Dockerfile 생성
+        cat > "services/$service_name/Dockerfile" << DOCKER_EOF
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# 시스템 의존성 설치
+RUN apt-get update && apt-get install -y gcc && rm -rf /var/lib/apt/lists/*
+
+# Python 의존성 복사 및 설치
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 애플리케이션 코드 복사
+COPY . .
+
+# 포트 노출
+EXPOSE $port
+
+# 헬스체크
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \\
+    CMD curl -f http://localhost:$port/health || exit 1
+
+# 애플리케이션 실행
+CMD ["python", "-m", "interfaces.api.main"]
+DOCKER_EOF
+
+        # requirements.txt 생성
+        cat > "services/$service_name/requirements.txt" << REQ_EOF
+fastapi==0.104.1
+uvicorn==0.24.0
+pydantic==2.5.0
+asyncpg==0.29.0
+aioredis==2.0.1
+influxdb-client==1.40.0
+prometheus-client==0.19.0
+structlog==23.2.0
+aiohttp==3.9.0
+REQ_EOF
+
+    done
+    
+    log_success "V4 서비스 구조 생성 완료"
+}
+
+# 공통 설정 파일 생성
+create_config_files() {
+    log_info "공통 설정 파일 생성 중..."
+    
+    # 공통 디렉토리 구조
+    mkdir -p shared/{config,domain,infrastructure,utils}
+    mkdir -p infrastructure/{docker,kubernetes,monitoring}
+    mkdir -p scripts/{deployment,migration,testing}
+    mkdir -p tests/{unit,integration,performance}
+    mkdir -p docs
+    
+    # Docker Compose 파일 생성
+    cat > docker-compose.yml << 'COMPOSE_EOF'
+version: '3.8'
+
+services:
+  # 데이터베이스 서비스들
+  postgresql:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: phoenix95_v4
+      POSTGRES_USER: phoenix95
+      POSTGRES_PASSWORD: phoenix95_secure
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  influxdb:
+    image: influxdb:2.7
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: adminpassword
+    ports:
+      - "8086:8086"
+    volumes:
+      - influx_data:/var/lib/influxdb2
+    restart: unless-stopped
+
+  # Phoenix 95 V4 서비스들
+  api-gateway-enterprise:
+    build: ./services/api-gateway-enterprise
+    ports:
+      - "8100:8100"
+    environment:
+      - DATABASE_URL=postgresql://phoenix95:phoenix95_secure@postgresql:5432/phoenix95_v4
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - postgresql
+      - redis
+    restart: unless-stopped
+
+  signal-ingestion-pro:
+    build: ./services/signal-ingestion-pro
+    ports:
+      - "8101:8101"
+    environment:
+      - DATABASE_URL=postgresql://phoenix95:phoenix95_secure@postgresql:5432/phoenix95_v4
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - postgresql
+      - redis
+    restart: unless-stopped
+
+  market-data-intelligence:
+    build: ./services/market-data-intelligence
+    ports:
+      - "8102:8102"
+    environment:
+      - DATABASE_URL=postgresql://phoenix95:phoenix95_secure@postgresql:5432/phoenix95_v4
+      - REDIS_URL=redis://redis:6379
+      - INFLUXDB_URL=http://influxdb:8086
+    depends_on:
+      - postgresql
+      - redis
+      - influxdb
+    restart: unless-stopped
+
+  phoenix95-ai-engine:
+    build: ./services/phoenix95-ai-engine
+    ports:
+      - "8103:8103"
+    environment:
+      - DATABASE_URL=postgresql://phoenix95:phoenix95_secure@postgresql:5432/phoenix95_v4
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - postgresql
+      - redis
+    restart: unless-stopped
+
+  trade-execution-leverage:
+    build: ./services/trade-execution-leverage
+    ports:
+      - "8106:8106"
+    environment:
+      - DATABASE_URL=postgresql://phoenix95:phoenix95_secure@postgresql:5432/phoenix95_v4
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - postgresql
+      - redis
+    restart: unless-stopped
+
+  position-tracker-realtime:
+    build: ./services/position-tracker-realtime
+    ports:
+      - "8107:8107"
+    environment:
+      - DATABASE_URL=postgresql://phoenix95:phoenix95_secure@postgresql:5432/phoenix95_v4
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - postgresql
+      - redis
+    restart: unless-stopped
+
+  notification-hub-intelligent:
+    build: ./services/notification-hub-intelligent
+    ports:
+      - "8109:8109"
+    environment:
+      - DATABASE_URL=postgresql://phoenix95:phoenix95_secure@postgresql:5432/phoenix95_v4
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - postgresql
+      - redis
+    restart: unless-stopped
+
+  # 모니터링
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  influx_data:
+  grafana_data:
+
+networks:
+  default:
+    name: phoenix95_v4_network
+COMPOSE_EOF
+
+    # 공통 설정 파일들 생성
+    cat > shared/config/telegram_config.py << 'TELEGRAM_EOF'
+"""
+Phoenix 95 V4 Enhanced Telegram Configuration
+"""
+
+TELEGRAM_CONFIG = {
+    "bot_token": "7386542811:AAEZ21p30rES1k8NxNM2xbZ53U44PI9D5CY",
+    "chat_id": "7590895952",
+    "alerts": {
+        "trade_execution": True,
+        "position_updates": True,
+        "system_errors": True,
+        "performance_reports": True
+    },
+    "notification_levels": {
+        "INFO": True,
+        "WARNING": True,
+        "ERROR": True,
+        "CRITICAL": True
+    }
+}
+
+async def send_telegram_message(message: str, level: str = "INFO"):
+    """텔레그램 메시지 전송"""
+    import aiohttp
+    
+    if not TELEGRAM_CONFIG["notification_levels"].get(level, False):
+        return
+    
+    url = f"https://api.telegram.org/bot{TELEGRAM_CONFIG['bot_token']}/sendMessage"
+    data = {
+        "chat_id": TELEGRAM_CONFIG["chat_id"],
+        "text": f"[{level}] {message}",
+        "parse_mode": "HTML"
+    }
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            await session.post(url, data=data)
+    except Exception as e:
+        print(f"텔레그램 전송 실패: {e}")
+TELEGRAM_EOF
+
+    cat > shared/config/trading_config.py << 'TRADING_EOF'
+"""
+Phoenix 95 V4 Enhanced Trading Configuration
+"""
+
+TRADING_CONFIG = {
+    "leverage": {
+        "max_leverage": 20,
+        "margin_mode": "ISOLATED",
+        "position_side": "BOTH"
+    },
+    "risk_management": {
+        "max_position_size_usd": 50000,
+        "max_daily_loss_usd": 5000,
+        "stop_loss_percentage": 0.02,
+        "take_profit_percentage": 0.04
+    },
+    "phoenix95": {
+        "confidence_threshold": 0.85,
+        "min_kelly_ratio": 0.1,
+        "max_kelly_ratio": 0.25
+    },
+    "allowed_symbols": [
+        "BTCUSDT", "ETHUSDT", "ADAUSDT", "DOTUSDT", "LINKUSDT",
+        "LTCUSDT", "XRPUSDT", "EOSUSDT", "TRXUSDT", "ETCUSDT"
+    ]
+}
+
+SIGNAL_VALIDATION = {
+    "required_fields": ["symbol", "action", "price", "confidence"],
+    "confidence_min": 0.7,
+    "price_deviation_max": 0.05,
+    "duplicate_timeout_seconds": 300
+}
+TRADING_EOF
+
+    # 모니터링 설정
+    mkdir -p infrastructure/monitoring
+    cat > infrastructure/monitoring/prometheus.yml << 'PROMETHEUS_EOF'
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'phoenix95-v4-services'
+    static_configs:
+      - targets:
+          - 'localhost:8100'  # api-gateway-enterprise
+          - 'localhost:8101'  # signal-ingestion-pro
+          - 'localhost:8102'  # market-data-intelligence
+          - 'localhost:8103'  # phoenix95-ai-engine
+          - 'localhost:8106'  # trade-execution-leverage
+          - 'localhost:8107'  # position-tracker-realtime
+          - 'localhost:8109'  # notification-hub-intelligent
+
+  - job_name: 'databases'
+    static_configs:
+      - targets:
+          - 'localhost:5432'  # PostgreSQL
+          - 'localhost:6379'  # Redis
+          - 'localhost:8086'  # InfluxDB
+
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+PROMETHEUS_EOF
+
+    # 환경 변수 예제
+    cat > .env.example << 'ENV_EOF'
+# Phoenix 95 V4 Environment Variables
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=phoenix95_v4
+POSTGRES_USER=phoenix95
+POSTGRES_PASSWORD=phoenix95_secure
+
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
+INFLUXDB_URL=http://localhost:8086
+INFLUXDB_TOKEN=your_influxdb_token
+INFLUXDB_ORG=phoenix95
+INFLUXDB_BUCKET=metrics
+
+TELEGRAM_BOT_TOKEN=7386542811:AAEZ21p30rES1k8NxNM2xbZ53U44PI9D5CY
+TELEGRAM_CHAT_ID=7590895952
+
+MAX_LEVERAGE=20
+MARGIN_MODE=ISOLATED
+
+LOG_LEVEL=INFO
+ENV_EOF
+
+    # 기본 README 생성
+    cat > README.md << 'README_EOF'
+# Phoenix 95 V4 Enhanced
+
+완전 자동화된 Enterprise급 거래 시스템
+
+## 🚀 빠른 시작
+
+```bash
+# 복구 시스템 실행
+./run_phoenix95_recovery.sh
+
+# 서비스 시작
+docker-compose up -d
+
+# 헬스체크
+curl http://localhost:8100/health
+```
+
+## 📊 서비스 구조
+
+- **API Gateway** (8100): 라우팅 및 인증
+- **Signal Ingestion** (8101): 신호 수집
+- **Market Data Intelligence** (8102): 시장 데이터 분석
+- **Phoenix 95 AI Engine** (8103): AI 기반 신호 분석
+- **Trade Execution Leverage** (8106): 20x 레버리지 거래
+- **Position Tracker Realtime** (8107): 실시간 포지션 추적
+- **Notification Hub** (8109): 지능형 알림
+
+## 🔧 핵심 기능
+
+- ⚡ 20x 레버리지 거래 (ISOLATED 모드)
+- 🧠 Phoenix 95 AI 신뢰도 분석
+- 📊 실시간 포지션 추적 및 청산 모니터링
+- 🔔 텔레그램 통합 알림
+- 📈 Grafana 기반 모니터링
+- 🔄 DDD 마이크로서비스 아키텍처
+
+## 📚 문서
+
+- API 문서: http://localhost:8100/docs
+- Grafana: http://localhost:3000 (admin/admin)
+- Prometheus: http://localhost:9090
+
+## 🛠️ 개발
+
+```bash
+# 테스트 실행
+python -m pytest tests/
+
+# 코드 품질 검사
+python recovery_scripts/quality_enforcer.py
+
+# 성능 최적화
+python recovery_scripts/performance_optimizer.py
+```
+README_EOF
+
+    log_success "공통 설정 파일 생성 완료"
+}
+
+# 검증 및 테스트
+run_verification() {
+    log_info "시스템 검증 중..."
+    
+    # 구조 검증
+    required_dirs=("services" "shared" "infrastructure" "scripts" "tests")
+    for dir in "${required_dirs[@]}"; do
+        if [ -d "$dir" ]; then
+            log_success "✅ 디렉토리 존재: $dir"
+        else
+            log_warning "⚠️ 디렉토리 누락: $dir"
+        fi
+    done
+    
+    # 필수 파일 검증
+    required_files=("docker-compose.yml" "README.md" ".env.example")
+    for file in "${required_files[@]}"; do
+        if [ -f "$file" ]; then
+            log_success "✅ 파일 존재: $file"
+        else
+            log_warning "⚠️ 파일 누락: $file"
+        fi
+    done
+    
+    # 서비스 구조 검증
+    for service_dir in services/*/; do
+        if [ -d "$service_dir" ]; then
+            service_name=$(basename "$service_dir")
+            log_info "서비스 구조 검증: $service_name"
+            
+            if [ -f "$service_dir/interfaces/api/main.py" ]; then
+                log_success "  ✅ FastAPI 앱 존재"
+            else
+                log_warning "  ⚠️ FastAPI 앱 누락"
+            fi
+            
+            if [ -f "$service_dir/Dockerfile" ]; then
+                log_success "  ✅ Dockerfile 존재"
+            else
+                log_warning "  ⚠️ Dockerfile 누락"
+            fi
+        fi
+    done
+}
+
+# 메인 실행 흐름
+main() {
+    echo "🎯 Phoenix 95 V4 Enhanced 완전 복구 및 최적화"
+    echo "개발자: AI Assistant"
+    echo "버전: 4.0.0"
+    echo ""
+    
+    # 1. 환경 체크
+    check_requirements
+    
+    # 2. 백업 생성
+    create_backup
+    
+    # 3. 서비스 구조 생성
+    create_service_structure
+    
+    # 4. 설정 파일 생성
+    create_config_files
+    
+    # 5. 복구 시스템 실행
+    run_recovery_system
+    
+    # 6. 검증
+    run_verification
+    
+    echo ""
+    echo "🎉 Phoenix 95 V4 Enhanced 완전 복구 완료!"
+    echo ""
+    echo "📊 다음 단계:"
+    echo "1. docker-compose up -d (서비스 시작)"
+    echo "2. curl http://localhost:8100/health (헬스체크)"
+    echo "3. http://localhost:3000 (Grafana 대시보드)"
+    echo ""
+    echo "📁 생성된 파일들:"
+    echo "- ./services/ (7개 마이크로서비스)"
+    echo "- ./docker-compose.yml (완전 통합 설정)"
+    echo "- ./shared/config/ (공통 설정)"
+    echo "- ./infrastructure/ (인프라 설정)"
+    echo "- ./recovery_scripts/ (복구 도구)"
+    echo ""
+    echo "🔗 유용한 링크:"
+    echo "- API Gateway: http://localhost:8100"
+    echo "- Phoenix 95 AI: http://localhost:8103"
+    echo "- Trade Execution: http://localhost:8106"
+    echo "- Position Tracker: http://localhost:8107"
+    echo "- Grafana: http://localhost:3000"
+    echo "- Prometheus: http://localhost:9090"
+}
+
+# 스크립트 실행
+main "$@"
+EOF
+
+# =============================================================================
+# 2. 스크립트 실행 권한 부여
+# =============================================================================
+
+chmod +x run_phoenix95_recovery.sh
+
+# =============================================================================
+# 3. 추가 유틸리티 스크립트들
+# =============================================================================
+
+# 헬스체크 스크립트
+cat > health_check_all.sh << 'EOF'
+#!/bin/bash
+# Phoenix 95 V4 모든 서비스 헬스체크
+
+echo "🔍 Phoenix 95 V4 서비스 헬스체크"
+echo "================================="
+
+services=(
+    "api-gateway-enterprise:8100"
+    "signal-ingestion-pro:8101"
+    "market-data-intelligence:8102"
+    "phoenix95-ai-engine:8103"
+    "trade-execution-leverage:8106"
+    "position-tracker-realtime:8107"
+    "notification-hub-intelligent:8109"
+)
+
+for service_info in "${services[@]}"; do
+    IFS=':' read -r service_name port <<< "$service_info"
+    
+    echo -n "  $service_name ($port): "
+    
+    if curl -s -f "http://localhost:$port/health" > /dev/null 2>&1; then
+        echo "✅ 정상"
+    else
+        echo "❌ 비정상"
+    fi
+done
+
+echo ""
+echo "📊 추가 확인:"
+echo -n "  PostgreSQL (5432): "
+if pg_isready -h localhost -p 5432 > /dev/null 2>&1; then
+    echo "✅ 정상"
+else
+    echo "❌ 비정상"
+fi
+
+echo -n "  Redis (6379): "
+if redis-cli -p 6379 ping > /dev/null 2>&1; then
+    echo "✅ 정상"
+else
+    echo "❌ 비정상"
+fi
+EOF
+
+chmod +x health_check_all.sh
+
+# 로그 모니터링 스크립트
+cat > monitor_logs.sh << 'EOF'
+#!/bin/bash
+# Phoenix 95 V4 로그 모니터링
+
+echo "📊 Phoenix 95 V4 로그 모니터링"
+echo "============================="
+
+if [ "$1" = "errors" ]; then
+    echo "🔍 에러 로그만 표시:"
+    docker-compose logs --follow | grep -E "(ERROR|CRITICAL|Exception)"
+elif [ "$1" = "service" ] && [ -n "$2" ]; then
+    echo "📋 $2 서비스 로그:"
+    docker-compose logs --follow "$2"
+else
+    echo "📋 모든 서비스 로그 (실시간):"
+    echo "사용법: $0 [errors|service SERVICE_NAME]"
+    echo ""
+    docker-compose logs --follow --tail=50
+fi
+EOF
+
+chmod +x monitor_logs.sh
+
+# 백업 스크립트
+cat > backup_system.sh << 'EOF'
+#!/bin/bash
+# Phoenix 95 V4 시스템 백업
+
+BACKUP_DIR="backups/$(date +%Y%m%d_%H%M%S)"
+mkdir -p "$BACKUP_DIR"
+
+echo "💾 Phoenix 95 V4 시스템 백업 중..."
+echo "백업 위치: $BACKUP_DIR"
+
+# 설정 파일 백업
+echo "📋 설정 파일 백업 중..."
+tar -czf "$BACKUP_DIR/configs.tar.gz" \
+    docker-compose.yml \
+    .env* \
+    shared/config/ \
+    infrastructure/ 2>/dev/null
+
+# 서비스 코드 백업
+echo "🔧 서비스 코드 백업 중..."
+tar -czf "$BACKUP_DIR/services.tar.gz" services/ 2>/dev/null
+
+# 데이터베이스 백업 (Docker 컨테이너가 실행 중인 경우)
+if docker-compose ps postgresql | grep -q "Up"; then
+    echo "🗄️ PostgreSQL 백업 중..."
+    docker-compose exec -T postgresql pg_dump -U phoenix95 phoenix95_v4 > "$BACKUP_DIR/postgresql_backup.sql"
+fi
+
+if docker-compose ps redis | grep -q "Up"; then
+    echo "📊 Redis 백업 중..."
+    docker-compose exec redis redis-cli BGSAVE
+    docker cp $(docker-compose ps -q redis):/data/dump.rdb "$BACKUP_DIR/redis_backup.rdb" 2>/dev/null
+fi
+
+echo "✅ 백업 완료: $BACKUP_DIR"
+echo "💡 복구 방법: ./restore_system.sh $BACKUP_DIR"
+EOF
+
+chmod +x backup_system.sh
+
+# 복구 스크립트
+cat > restore_system.sh << 'EOF'
+#!/bin/bash
+# Phoenix 95 V4 시스템 복구
+
+if [ -z "$1" ]; then
+    echo "사용법: $0 <백업_디렉토리>"
+    echo "예: $0 backups/20241221_143022"
+    exit 1
+fi
+
+BACKUP_DIR="$1"
+
+if [ ! -d "$BACKUP_DIR" ]; then
+    echo "❌ 백업 디렉토리가 존재하지 않습니다: $BACKUP_DIR"
+    exit 1
+fi
+
+echo "🔄 Phoenix 95 V4 시스템 복구 중..."
+echo "백업 위치: $BACKUP_DIR"
+
+# 현재 시스템 중지
+echo "⏹️ 현재 시스템 중지 중..."
+docker-compose down 2>/dev/null || true
+
+# 설정 파일 복구
+if [ -f "$BACKUP_DIR/configs.tar.gz" ]; then
+    echo "📋 설정 파일 복구 중..."
+    tar -xzf "$BACKUP_DIR/configs.tar.gz"
+fi
+
+# 서비스 코드 복구
+if [ -f "$BACKUP_DIR/services.tar.gz" ]; then
+    echo "🔧 서비스 코드 복구 중..."
+    tar -xzf "$BACKUP_DIR/services.tar.gz"
+fi
+
+# 데이터베이스 복구
+echo "🔄 시스템 재시작 중..."
+docker-compose up -d postgresql redis
+
+echo "⏳ 데이터베이스 준비 대기 중..."
+sleep 30
+
+if [ -f "$BACKUP_DIR/postgresql_backup.sql" ]; then
+    echo "🗄️ PostgreSQL 복구 중..."
+    docker-compose exec -T postgresql psql -U phoenix95 -d phoenix95_v4 < "$BACKUP_DIR/postgresql_backup.sql"
+fi
+
+if [ -f "$BACKUP_DIR/redis_backup.rdb" ]; then
+    echo "📊 Redis 복구 중..."
+    docker cp "$BACKUP_DIR/redis_backup.rdb" $(docker-compose ps -q redis):/data/dump.rdb
+    docker-compose restart redis
+fi
+
+# 전체 시스템 시작
+echo "🚀 전체 시스템 시작 중..."
+docker-compose up -d
+
+echo "✅ 시스템 복구 완료!"
+echo "🔍 헬스체크: ./health_check_all.sh"
+EOF
+
+chmod +x restore_system.sh
+
+# 성능 테스트 스크립트
+cat > performance_test.sh << 'EOF'
+#!/bin/bash
+# Phoenix 95 V4 성능 테스트
+
+echo "⚡ Phoenix 95 V4 성능 테스트"
+echo "=========================="
+
+# API Gateway 성능 테스트
+echo "🔗 API Gateway 성능 테스트 중..."
+if command -v ab > /dev/null 2>&1; then
+    ab -n 1000 -c 10 http://localhost:8100/health
+else
+    echo "  ⚠️ Apache Bench (ab)가 설치되어 있지 않습니다"
+    echo "  💡 설치: sudo apt-get install apache2-utils"
+    
+    # curl을 이용한 간단한 테스트
+    echo "  🔄 curl을 이용한 기본 테스트..."
+    for i in {1..10}; do
+        response_time=$(curl -o /dev/null -s -w "%{time_total}" http://localhost:8100/health)
+        echo "    요청 $i: ${response_time}s"
+    done
+fi
+
+# 메모리 사용량 확인
+echo ""
+echo "🧠 메모리 사용량:"
+docker stats --no-stream --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}"
+
+# 디스크 사용량 확인
+echo ""
+echo "💾 디스크 사용량:"
+df -h | grep -E "(Filesystem|/dev/)"
+
+echo ""
+echo "✅ 성능 테스트 완료"
+EOF
+
+chmod +x performance_test.sh
+
+# =============================================================================
+# 실행 안내
+# =============================================================================
+
+echo "🎉 Phoenix 95 V4 Enhanced 완전 복구 시스템 생성 완료!"
+echo ""
+echo "📋 생성된 스크립트들:"
+echo "  🚀 run_phoenix95_recovery.sh - 메인 복구 실행"
+echo "  🔍 health_check_all.sh - 전체 서비스 헬스체크"
+echo "  📊 monitor_logs.sh - 로그 모니터링"
+echo "  💾 backup_system.sh - 시스템 백업"
+echo "  🔄 restore_system.sh - 시스템 복구"
+echo "  ⚡ performance_test.sh - 성능 테스트"
+echo ""
+echo "🎯 실행 방법:"
+echo "  1. ./run_phoenix95_recovery.sh (전체 시스템 복구)"
+echo "  2. docker-compose up -d (서비스 시작)"
+echo "  3. ./health_check_all.sh (상태 확인)"
+echo ""
+echo "📊 모니터링:"
+echo "  - Grafana: http://localhost:3000 (admin/admin)"
+echo "  - Prometheus: http://localhost:9090"
+echo "  - API Gateway: http://localhost:8100"
+echo ""
+echo "💡 유지보수:"
+echo "  - ./backup_system.sh (백업)"
+echo "  - ./monitor_logs.sh errors (에러 로그 모니터링)"
+echo "  - ./performance_test.sh (성능 테스트)"
