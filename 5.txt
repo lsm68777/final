@@ -1,0 +1,553 @@
+# 🏦 Phoenix 95 헤지펀드급 트레이딩 시스템 - 구축 명령 규칙
+
+## 📋 시스템 개요
+```
+설계 철학: "Simple is Stable" - 복잡성은 적이고, 단순함이 곧 수익
+아키텍처: 검증된 4개 핵심 컴포넌트 + 메시지 큐 + 실시간 스트림 (고가용성 지원)
+성능 목표: 응답시간 100ms 이하, 메모리 500MB 이하, 가용성 99.95%
+레버리지: 20x ISOLATED 마진, 2% 손절익절 고정
+고도화: 메시지 큐 시스템, 실시간 스트림 처리, 로드 밸런싱 지원
+```
+
+## 🎯 핵심 4개 컴포넌트 + 인프라 계층
+
+### 🧠 BRAIN - Signal Intelligence Engine (포트: 8100)
+- **역할**: Phoenix 95 AI 분석 + 신호 처리 통합
+- **기능**: 85% 이상 신뢰도 신호만 통과, Kelly Criterion 포지션 사이징
+- **파일**: `brain_service.py`
+- **엔드포인트**: `/analyze`, `/health`
+- **고도화**: RabbitMQ 메시지 발행, Redis Streams 데이터 스트리밍
+
+### ⚖️ RISK - Position & Risk Manager (포트: 8101)  
+- **역할**: 리스크 관리 (최우선 순위)
+- **기능**: 20x 레버리지 계산, 청산가 모니터링, 3단계 리스크 검증
+- **파일**: `risk_service.py`
+- **엔드포인트**: `/check`, `/status`, `/update`
+- **고도화**: Kafka 이벤트 스트리밍, 분산 리스크 계산
+
+### ⚡ EXECUTE - Trade Execution Engine (포트: 8102)
+- **역할**: 거래 실행 및 포지션 관리
+- **기능**: 바이낸스 API 연동, 2% 익절손절 자동화, 실시간 모니터링
+- **파일**: `execute_service.py`
+- **엔드포인트**: `/trade`, `/positions`, `/close`
+- **고도화**: 메시지 큐 기반 비동기 실행, 로드 밸런싱 지원
+
+### 📱 NOTIFY - Alert & Monitor Hub (포트: 8103)
+- **역할**: 알림 및 모니터링
+- **기능**: 텔레그램 알림, 실시간 대시보드, 성능 추적
+- **파일**: `notify_service.py`
+- **엔드포인트**: `/alert`, `/dashboard`, `/metrics`
+- **고도화**: 실시간 스트림 데이터 집계, 고가용성 알림 시스템
+
+---
+
+## 🔧 명령 실행 규칙
+
+### 📂 프로젝트 구조 생성 명령
+```
+시작점: C:\trading_system_v4
+명령어: "Phoenix 95 프로젝트 구조 생성 - 고도화 버전"
+결과물: 검증된 폴더 구조 + 초기 설정 파일들 + 인프라 계층
+```
+
+### 🏗️ 서비스 구축 순서
+1. **인프라 계층 구축** (메시지 큐 + 스트림 + 모니터링)
+2. **BRAIN 서비스 구축** (Phoenix 95 AI 엔진)
+3. **RISK 서비스 구축** (리스크 관리자)  
+4. **EXECUTE 서비스 구축** (거래 실행기)
+5. **NOTIFY 서비스 구축** (알림 허브)
+6. **통합 테스트 및 고가용성 배포**
+
+### 📋 각 단계별 명령 패턴
+```
+명령어 형식: "[컴포넌트명] 서비스 완전 구현 - [고도화 기능]"
+출력 요구사항: 
+- PowerShell Here-String 형식
+- 복사-붙여넣기 즉시 실행 가능
+- 완전한 코드 + 설정 + 테스트
+- 한글 주석 및 로그 메시지
+- 메시지 큐/스트림 처리 통합
+```
+
+---
+
+## 🔧 핵심 설정값 (검증됨 + 고도화)
+
+### 🔐 보안 설정
+```python
+TELEGRAM_CONFIG = {
+    "token": "7386542811:AAEZ21p30rES1k8NxNM2xbZ53U44PI9D5CY",
+    "chat_id": "7590895952",
+    "enabled": True
+}
+
+SECURITY_CONFIG = {
+    "webhook_secret": "phoenix_complete_webhook_2025_ultra_secure",
+    "api_keys": ["phoenix_complete_key_1", "phoenix_complete_key_2"],
+    "rate_limit_per_minute": 120
+}
+```
+
+### 💰 거래 설정
+```python
+TRADING_CONFIG = {
+    "allowed_symbols": ["BTCUSDT", "ETHUSDT", "BNBUSDT", "ADAUSDT", "DOGEUSDT"],
+    "min_confidence": 0.25,
+    "phoenix_95_threshold": 0.45,
+    "max_position_size": 0.15,
+    "kelly_fraction": 0.20
+}
+
+LEVERAGE_CONFIG = {
+    "leverage": 20,
+    "margin_mode": "ISOLATED",
+    "stop_loss_percent": 0.02,      # 2% 손절
+    "take_profit_percent": 0.02,    # 2% 익절
+    "liquidation_buffer": 0.1
+}
+```
+
+### 🎯 Phoenix 95 AI 설정
+```python
+PHOENIX_95_CONFIG = {
+    "threshold": 0.45,              # 45% 이상만 거래
+    "multiplier": 1.3,              # 신뢰도 부스팅
+    "weight": 0.95,                 # Phoenix 가중치
+    "analysis_timeout": 30,         # 30초 분석 제한
+    "cache_duration": 120           # 2분 캐시
+}
+```
+
+### 📨 메시지 큐 설정 ⭐⭐⭐⭐⭐
+```python
+MESSAGE_QUEUE_CONFIG = {
+    "host": "localhost",
+    "port": 5672,
+    "username": "phoenix95",
+    "password": "secure_password_2025",
+    "virtual_host": "/trading",
+    "exchanges": {
+        "phoenix95.analysis": {
+            "type": "direct",
+            "durable": True,
+            "auto_delete": False
+        },
+        "trading.signals": {
+            "type": "topic", 
+            "durable": True,
+            "auto_delete": False
+        },
+        "risk.management": {
+            "type": "direct",
+            "durable": True,
+            "auto_delete": False
+        }
+    },
+    "queues": {
+        "signal_processing": {
+            "durable": True,
+            "exclusive": False,
+            "auto_delete": False,
+            "routing_key": "signal.process"
+        },
+        "trade_execution": {
+            "durable": True,
+            "exclusive": False, 
+            "auto_delete": False,
+            "routing_key": "trade.execute"
+        },
+        "risk_alerts": {
+            "durable": True,
+            "exclusive": False,
+            "auto_delete": False,
+            "routing_key": "risk.alert"
+        }
+    }
+}
+
+AMQP_CONFIG = {
+    "connection_timeout": 30,
+    "heartbeat": 300,
+    "confirm_delivery": True,
+    "mandatory": True,
+    "immediate": False,
+    "retry_attempts": 3,
+    "retry_delay": 5
+}
+```
+
+### 🌊 실시간 스트림 설정 ⭐⭐⭐⭐
+```python
+REDIS_STREAMS_CONFIG = {
+    "host": "localhost",
+    "port": 6379,
+    "db": 0,
+    "streams": {
+        "market_data": "market:stream",
+        "signal_analysis": "signal:stream", 
+        "trade_events": "trade:stream",
+        "risk_metrics": "risk:stream"
+    },
+    "consumer_groups": {
+        "brain_processors": ["brain-1", "brain-2"],
+        "risk_processors": ["risk-1", "risk-2"],
+        "execution_processors": ["exec-1", "exec-2"]
+    },
+    "max_len": 10000,
+    "block_ms": 1000
+}
+
+KAFKA_CONFIG = {
+    "bootstrap_servers": ["localhost:9092"],
+    "topics": {
+        "phoenix95_signals": {
+            "partitions": 3,
+            "replication_factor": 1
+        },
+        "trading_events": {
+            "partitions": 3,
+            "replication_factor": 1
+        },
+        "risk_events": {
+            "partitions": 2,
+            "replication_factor": 1
+        }
+    },
+    "producer": {
+        "acks": "all",
+        "retries": 3,
+        "batch_size": 16384,
+        "linger_ms": 10
+    },
+    "consumer": {
+        "group_id": "phoenix95_processors",
+        "auto_offset_reset": "latest",
+        "enable_auto_commit": False
+    }
+}
+```
+
+### 🚀 고가용성 설정 ⭐⭐⭐
+```python
+HIGH_AVAILABILITY_CONFIG = {
+    "load_balancer": {
+        "algorithm": "round_robin",
+        "health_check_interval": 30,
+        "health_check_timeout": 5,
+        "max_fails": 3,
+        "fail_timeout": 30
+    },
+    "service_discovery": {
+        "enabled": True,
+        "consul_host": "localhost",
+        "consul_port": 8500,
+        "service_ttl": 30
+    },
+    "circuit_breaker": {
+        "failure_threshold": 5,
+        "recovery_timeout": 60,
+        "expected_exception": ["ConnectionError", "TimeoutError"]
+    },
+    "monitoring": {
+        "prometheus_port": 9090,
+        "grafana_port": 3000,
+        "alert_manager_port": 9093
+    }
+}
+```
+
+---
+
+## 🚀 실행 프로세스 (고도화)
+
+### 1단계: 환경 준비
+```powershell
+# Docker 및 Python 환경 확인
+# 필수 포트 확인 (8100-8103, 5672, 6379, 9092)
+# 디렉토리 구조 생성
+# 인프라 컨테이너 시작 (RabbitMQ, Redis, Kafka)
+```
+
+### 2단계: 인프라 계층 구축 ⭐⭐⭐⭐
+```powershell
+# RabbitMQ 클러스터 설정
+# Redis Streams 구성
+# Kafka 클러스터 배포
+# Nginx 로드 밸런서 설정
+# 모니터링 스택 배포 (Prometheus + Grafana)
+```
+
+### 2.5단계: 실시간 스트림 설정 ⭐⭐⭐⭐
+```powershell
+# Redis Streams 토픽 생성
+# Kafka 토픽 및 파티션 설정
+# 스트림 프로세서 배포
+# 데이터 파이프라인 검증
+```
+
+### 3단계: 핵심 서비스 구축
+```powershell
+# BRAIN → RISK → EXECUTE → NOTIFY 순서로 구축
+# 각 서비스별 독립 실행 가능하도록 구성
+# 메시지 큐 기반 서비스 간 통신 구현
+# 실시간 스트림 처리 통합
+```
+
+### 4단계: 통합 및 테스트
+```powershell
+# 메시지 큐 연동 테스트
+# 실시간 스트림 처리 테스트
+# 고가용성 시나리오 테스트
+# 부하 테스트 (1000+ req/sec)
+# 장애 복구 테스트
+```
+
+### 5단계: 고가용성 배포 ⭐⭐⭐
+```powershell
+# 로드 밸런서 배포
+# 서비스 디스커버리 설정
+# 서킷 브레이커 구성
+# 헬스체크 및 자동 복구 설정
+# 모니터링 대시보드 활성화
+```
+
+---
+
+## 📁 파일 구조 설계도 (고도화)
+
+```
+C:\trading_system_v4\
+├── 📁 services\                    # 4개 핵심 서비스
+│   ├── 🧠 brain\                   # Signal Intelligence Engine
+│   │   ├── brain_service.py        # Phoenix 95 AI 엔진
+│   │   ├── signal_analyzer.py      # 신호 분석기
+│   │   ├── message_publisher.py    # 메시지 발행자
+│   │   └── config.py              # 설정 파일
+│   │
+│   ├── ⚖️ risk\                    # Risk Management
+│   │   ├── risk_service.py         # 리스크 관리자
+│   │   ├── position_manager.py     # 포지션 관리
+│   │   ├── kelly_calculator.py     # Kelly Criterion
+│   │   └── stream_processor.py     # 스트림 처리기
+│   │
+│   ├── ⚡ execute\                 # Trade Execution
+│   │   ├── execute_service.py      # 거래 실행기
+│   │   ├── binance_client.py       # 바이낸스 클라이언트
+│   │   ├── leverage_manager.py     # 레버리지 관리
+│   │   └── queue_consumer.py       # 큐 컨슈머
+│   │
+│   └── 📱 notify\                  # Notification Hub
+│       ├── notify_service.py       # 알림 서비스
+│       ├── telegram_bot.py         # 텔레그램 봇
+│       ├── dashboard.py           # 대시보드
+│       └── metrics_collector.py   # 메트릭 수집기
+│
+├── 📁 infrastructure\              # 인프라 구성 ⭐⭐⭐
+│   ├── 📁 rabbitmq\               # RabbitMQ 설정
+│   │   ├── rabbitmq.conf          # RabbitMQ 구성
+│   │   ├── definitions.json       # 큐/익스체인지 정의
+│   │   └── docker-compose.rabbitmq.yml
+│   │
+│   ├── 📁 kafka\                  # Kafka 클러스터
+│   │   ├── server.properties      # Kafka 서버 설정
+│   │   ├── zookeeper.properties   # Zookeeper 설정
+│   │   └── docker-compose.kafka.yml
+│   │
+│   ├── 📁 redis\                  # Redis 설정
+│   │   ├── redis.conf             # Redis 구성
+│   │   └── docker-compose.redis.yml
+│   │
+│   ├── 📁 nginx_lb\               # 로드 밸런서
+│   │   ├── nginx.conf             # Nginx 설정
+│   │   ├── upstream.conf          # 업스트림 서버
+│   │   └── docker-compose.nginx.yml
+│   │
+│   └── 📁 monitoring\             # 모니터링 스택
+│       ├── prometheus.yml         # Prometheus 설정
+│       ├── grafana.yml           # Grafana 설정
+│       ├── alertmanager.yml      # 알림 규칙
+│       └── docker-compose.monitoring.yml
+│
+├── 📁 shared\                      # 공통 라이브러리
+│   ├── models.py                   # 데이터 모델
+│   ├── database.py                # DB 연결
+│   ├── redis_client.py            # Redis 클라이언트
+│   ├── rabbitmq_client.py         # RabbitMQ 클라이언트  
+│   ├── kafka_client.py            # Kafka 클라이언트
+│   ├── stream_processor.py        # 스트림 처리 기본 클래스
+│   └── utils.py                   # 유틸리티
+│
+├── 📁 config\                      # 설정 파일들
+│   ├── settings.py                # 메인 설정
+│   ├── trading_config.py          # 거래 설정
+│   ├── security_config.py         # 보안 설정
+│   ├── infrastructure_config.py   # 인프라 설정
+│   └── ha_config.py              # 고가용성 설정
+│
+├── 📁 tests\                       # 테스트
+│   ├── unit\                      # 단위 테스트
+│   ├── integration\               # 통합 테스트
+│   ├── load\                      # 부하 테스트
+│   └── infrastructure\           # 인프라 테스트
+│
+├── 📁 deployment\                  # 배포 설정
+│   ├── docker-compose.yml         # 메인 구성
+│   ├── docker-compose.dev.yml     # 개발 환경
+│   ├── docker-compose.prod.yml    # 프로덕션 환경
+│   ├── docker-compose.ha.yml      # 고가용성 환경
+│   ├── Dockerfile                 # Docker 이미지
+│   └── k8s\                      # Kubernetes 매니페스트
+│       ├── namespace.yaml
+│       ├── services.yaml
+│       └── deployments.yaml
+│
+├── 📁 docs\                        # 문서
+│   ├── README.md                  # 프로젝트 설명
+│   ├── API.md                     # API 문서
+│   ├── DEPLOYMENT.md              # 배포 가이드
+│   ├── INFRASTRUCTURE.md          # 인프라 가이드
+│   └── TROUBLESHOOTING.md         # 트러블슈팅
+│
+├── 📁 scripts\                     # 실행 스크립트
+│   ├── start_dev.ps1             # 개발 환경 시작
+│   ├── start_prod.ps1            # 프로덕션 시작
+│   ├── start_ha.ps1              # 고가용성 시작
+│   ├── setup_infrastructure.ps1  # 인프라 셋업
+│   ├── health_check.ps1          # 헬스체크
+│   └── performance_test.ps1      # 성능 테스트
+│
+└── 📄 requirements.txt             # Python 의존성
+```
+
+---
+
+## 🎯 다음 세션 명령어 템플릿 (고도화)
+
+### 프로젝트 초기화
+```
+명령: "Phoenix 95 프로젝트 구조 생성 - 고도화 버전"
+요구사항: C:\trading_system_v4 경로에 완전한 폴더 구조와 기본 설정 파일 생성 (인프라 계층 포함)
+```
+
+### 인프라 고도화 ⭐⭐⭐⭐⭐
+```
+명령: "메시지 큐 시스템 완전 구현 - RabbitMQ + AMQP"
+요구사항: RabbitMQ 클러스터 설정, 큐/익스체인지 구성, AMQP 클라이언트 구현
+
+명령: "실시간 스트림 처리 구현 - Redis Streams + Kafka"
+요구사항: Redis Streams 설정, Kafka 클러스터, 스트림 프로세서 구현
+
+명령: "로드 밸런서 및 고가용성 구성"
+요구사항: Nginx 로드 밸런서, 서킷 브레이커, 헬스체크 시스템 구현
+```
+
+### BRAIN 서비스 구축 (고도화)
+```
+명령: "BRAIN 서비스 완전 구현 - Phoenix 95 AI 엔진 + 메시지 큐"
+요구사항: brain_service.py + signal_analyzer.py + message_publisher.py + 테스트 코드 완전 구현
+```
+
+### RISK 서비스 구축 (고도화)
+```
+명령: "RISK 서비스 완전 구현 - 20x 레버리지 리스크 관리 + 스트림 처리"
+요구사항: risk_service.py + position_manager.py + kelly_calculator.py + stream_processor.py 완전 구현
+```
+
+### EXECUTE 서비스 구축 (고도화)
+```
+명령: "EXECUTE 서비스 완전 구현 - 바이낸스 거래 실행 + 큐 기반 비동기 처리"
+요구사항: execute_service.py + binance_client.py + leverage_manager.py + queue_consumer.py 완전 구현
+```
+
+### NOTIFY 서비스 구축 (고도화)
+```
+명령: "NOTIFY 서비스 완전 구현 - 텔레그램 알림 + 실시간 메트릭 대시보드"  
+요구사항: notify_service.py + telegram_bot.py + dashboard.py + metrics_collector.py 완전 구현
+```
+
+### 통합 및 배포 (고도화)
+```
+명령: "Phoenix 95 시스템 통합 및 고가용성 배포"
+요구사항: Docker Compose HA + Kubernetes 매니페스트 + 모니터링 스택 + 운영 스크립트 완전 구현
+```
+
+### 성능 최적화 및 모니터링
+```
+명령: "성능 모니터링 및 최적화 시스템 구현"  
+요구사항: Prometheus + Grafana + AlertManager + 성능 대시보드 + 자동 스케일링 완전 구현
+```
+
+---
+
+## ⚠️ 중요 원칙 (고도화)
+
+### 🔍 검증된 설정 사용
+- 모든 설정값은 업로드된 문서의 검증된 값 사용
+- 텔레그램 토큰, API 키, 임계값 등 그대로 유지
+- 새로운 인프라 설정값은 프로덕션 검증된 값 사용
+
+### 🏗️ 단순함 + 확장성
+- 복잡한 마이크로서비스 대신 4개 핵심 컴포넌트 + 인프라 계층
+- 메시지 큐와 스트림 처리로 확장성 확보
+- 실용성과 안정성 우선, 과도한 추상화 배제
+
+### ⚡ 즉시 실행 가능 + 고가용성
+- 모든 코드는 복사-붙여넣기로 즉시 실행 가능
+- PowerShell Here-String 형식 사용
+- 완전한 코드 + 설정 + 테스트 포함
+- Docker Compose 원클릭 배포 지원
+
+### 🛡️ 안정성 + 복원력
+- 검증된 아키텍처 패턴 사용
+- 서킷 브레이커, 재시도 로직, 데드레터 큐
+- 에러 처리 및 로깅 완비
+- 자동 장애 복구 및 스케일링
+
+### 🔄 실시간 처리 + 모니터링
+- Redis Streams와 Kafka를 통한 실시간 데이터 처리
+- Prometheus + Grafana 모니터링 스택
+- 실시간 알림 및 자동 대응 시스템
+- 성능 메트릭 실시간 추적
+
+---
+
+## 📊 성공 기준 (고도화)
+
+### 기능적 요구사항
+- ✅ TradingView 웹훅 신호 수신
+- ✅ Phoenix 95 AI 분석 (85% 이상 신뢰도)
+- ✅ 20x 레버리지 거래 실행
+- ✅ 2% 손절익절 자동화
+- ✅ 텔레그램 실시간 알림
+- ✅ 웹 대시보드 모니터링
+- ✅ 메시지 큐 기반 비동기 처리 ⭐
+- ✅ 실시간 스트림 데이터 처리 ⭐
+- ✅ 로드 밸런싱 및 고가용성 ⭐
+
+### 성능 요구사항
+- ✅ 신호 처리 시간: < 100ms
+- ✅ 메모리 사용량: < 500MB (단일 서비스)
+- ✅ 동시 처리: 1000+ req/sec
+- ✅ 가용성: 99.95%
+- ✅ 메시지 처리량: 10,000+ msg/sec ⭐
+- ✅ 스트림 지연시간: < 50ms ⭐
+- ✅ 장애 복구 시간: < 30초 ⭐
+
+### 운영 요구사항
+- ✅ 원클릭 배포 (docker-compose up)
+- ✅ 실시간 헬스체크
+- ✅ 자동 오류 복구
+- ✅ 완전한 로깅 및 모니터링
+- ✅ 무중단 배포 지원 ⭐
+- ✅ 자동 스케일링 ⭐
+- ✅ 실시간 성능 대시보드 ⭐
+
+### 고가용성 요구사항 ⭐⭐⭐
+- ✅ 다중 인스턴스 운영
+- ✅ 로드 밸런서 자동 장애조치
+- ✅ 데이터 복제 및 백업
+- ✅ 서킷 브레이커 패턴 적용
+- ✅ 장애 격리 및 복구
+- ✅ 실시간 모니터링 및 알림
+
+이제 이 고도화된 설계도를 기반으로 "Phoenix 95 프로젝트 구조 생성 - 고도화 버전" 명령어부터 시작하시면 됩니다!
